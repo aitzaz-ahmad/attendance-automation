@@ -160,5 +160,10 @@ cython_debug/
 #.idea/
 
 
-# google credentials
+# GCP credentials
 **/attend1-gdrive-creds.json
+
+# Pi-4 state and config files
+**/snapshot.json
+**/review_period.json
+**/biometric_device_config.json
