@@ -12,7 +12,7 @@ The solution leverages a pull-push mechanism to fetch the attendance data from t
 
 - The frontend leverages a standalone Python script running on a Raspberry Pi4 device.
 - The Raspberry Pi4 device is interfaced with the ZKTeco biometric device via an ethernet connection.
-- The ZKteco biometric attendance machines host an embedded TCP server from the manufacturer which allows pulling the attendance data from the device.
+- The ZKTeco biometric attendance machines host an embedded TCP server from the manufacturer which allows pulling the attendance data from the device.
 
 ### Backend
 
