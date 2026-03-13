@@ -1,0 +1,32 @@
+name: Prefix issue titles
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  prefix-title:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Prefix issue title with issue number
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const issueNumber = issue.number;
+            const currentTitle = issue.title.trim();
+
+            const desiredTitle = `ETLP-${issueNumber}: ${currentTitle.replace(/^ETLP-\d+:\s*/, '')}`;
+
+            if (currentTitle !== desiredTitle) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                title: desiredTitle
+              });
+            }
