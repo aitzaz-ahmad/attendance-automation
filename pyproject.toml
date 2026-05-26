@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "attendance-etl"
+version = "0.1.0"
+description = "Attendance ETL package"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "google-cloud-pubsub==1.1.0",
+    "protobuf==3.11.2",
+    "pyzk==0.9",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["attendance_etl*"]
