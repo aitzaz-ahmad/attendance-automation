@@ -7,25 +7,23 @@ commit creation, or pull request review.
 
 Always run:
 
+    .venv/bin/python -m ruff check .
+
+    .venv/bin/python -m black --check .
+
+    .venv/bin/python -m mypy src
+
     git diff --check
 
 Pending validation commands:
 
     ./scripts/validate.sh
-    # Pending: ETLP-8 / ETLP-9
-    # Enable once the CI and validation tooling are implemented.
+    # Pending: dedicated validation runner
+    # Enable once the repository-level validation runner is implemented.
 
     .venv/bin/python -m pytest -q
     # Pending: ETLP-7
-    # Enable once the repository test structure is implemented.
-
-    .venv/bin/python -m ruff check .
-    # Pending: ETLP-9
-    # Enable once formatting and linting checks are implemented.
-
-    .venv/bin/python -m mypy src
-    # Pending: ETLP-9
-    # Enable once typing checks are implemented.
+    # Enable once the repository test structure is promoted beyond scaffolding.
 
 ## Rules
 
