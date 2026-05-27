@@ -1,0 +1,26 @@
+# Normalize text files to LF in the index and on checkout for stable diffs.
+* text=auto eol=lf
+
+# Source, configuration, documentation, and script files are always LF text.
+*.py text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.json text eol=lf
+*.sh text eol=lf
+*.bash text eol=lf
+*.zsh text eol=lf
+
+# Repository metadata should remain LF across platforms.
+.gitignore text eol=lf
+.gitattributes text eol=lf
+.editorconfig text eol=lf
+
+# Binary assets must not be normalized or treated as text.
+*.png binary -eol
+*.jpg binary -eol
+*.jpeg binary -eol
+*.gif binary -eol
+*.pdf binary -eol
+*.zip binary -eol
