@@ -40,6 +40,9 @@ client pulls attendance records from the biometric device and publishes messages
 handlers consume those messages, interact with review-period and review-sheet data, and write attendance
 review output to Google Sheets.
 
+For a Mermaid view of the current system flow, see
+[System Architecture](docs/diagrams/system-architecture.md).
+
 ## Data Pipeline
 
 The intended data flow is:
