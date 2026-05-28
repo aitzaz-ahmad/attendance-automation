@@ -64,3 +64,9 @@ The Pi 4 client script requires the following configuration files to be present 
     "last_stored_timestamp": null
 }
 ```
+
+## Contributing
+
+For local setup, validation commands, and development workflow, see:
+
+- [Local Development](docs/workflows/local-development.md)
