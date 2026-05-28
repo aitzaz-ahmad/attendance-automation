@@ -20,10 +20,7 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 pre-commit install
-python -m ruff check .
-python -m black --check .
-python -m mypy src
-git diff --check
+./scripts/validate.sh
 ```
 
 ## Setup
@@ -77,23 +74,22 @@ rerun the hooks before committing.
 
 ## Local Validation
 
-Run the required validation gates before reporting implementation completion:
+Run the canonical local validation runner before reporting implementation
+completion:
 
 ```sh
-python -m ruff check .
-python -m black --check .
-python -m mypy src
-git diff --check
+./scripts/validate.sh
 ```
 
-If the virtual environment is not activated, run the Python tools through the
-environment interpreter instead:
+The runner executes the mandatory local gates listed in
+`validation-gates.md`. It resolves the repository root before running, uses the
+active virtual environment when one is available, falls back to `.venv`, and
+then falls back to `python3`.
+
+Pre-commit remains useful before individual commits:
 
 ```sh
-.venv/bin/python -m ruff check .
-.venv/bin/python -m black --check .
-.venv/bin/python -m mypy src
-git diff --check
+pre-commit run
 ```
 
 `pytest` is pending repository test-tooling promotion and is not mandatory yet.
