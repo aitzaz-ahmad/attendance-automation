@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "attendance-etl"
-version = "0.1.0"
+version = "1.0.0"
 description = "Attendance ETL package"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -17,6 +17,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "black>=24.10.0",
+    "bump-my-version>=0.28.0",
     "mypy>=1.13.0,<1.15",
     "pre-commit>=4.0.0,<5",
     "ruff>=0.8.0",
@@ -36,6 +37,23 @@ select = ["E4", "E7", "E9", "F"]
 [tool.black]
 line-length = 120
 target-version = ["py38"]
+
+[tool.bumpversion]
+current_version = "1.0.0"
+parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)"
+serialize = ["{major}.{minor}.{patch}"]
+search = "{current_version}"
+replace = "{new_version}"
+regex = false
+ignore_missing_version = false
+tag = false
+sign_tags = false
+commit = false
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
 
 [tool.mypy]
 python_version = "3.8"
