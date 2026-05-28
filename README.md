@@ -50,8 +50,8 @@ Extract -> Transform/Canonicalise -> Publish -> Process -> Store/Review
 
 - Extract: the ingestion client connects to the ZKTeco device and retrieves users and attendance records.
 - Transform/Canonicalise: current code decodes device records into Python dictionaries containing timestamp,
-  employee name, device identifier, and entry type. A more explicit canonical attendance event schema remains
-  future work.
+  employee name, device identifier, and entry type. The target canonical attendance event contract is documented
+  in [Canonical Attendance Event](docs/data-contracts/canonical-attendance-event.md).
 - Publish: the ingestion client publishes JSON payloads to Google Cloud Pub/Sub topics for review-period,
   review-sheet, and attendance-record workflows.
 - Process: Google Cloud Function modules under `attendance_etl.functions` process Pub/Sub events and coordinate
@@ -98,7 +98,7 @@ The repository currently contains:
 Near-term work should stay focused on making the existing ETL system easier to reason about, test, and
 extend:
 
-- Define a canonical attendance event schema.
+- Adopt the canonical attendance event schema across transformation and downstream processing.
 - Document architecture and data contracts.
 - Add focused tests around ingestion and function behavior.
 - Isolate the transformation layer.
@@ -116,4 +116,5 @@ For setup, dependency installation, validation commands, and contribution workfl
 Key repository references:
 
 - [Agent operating instructions](AGENTS.md)
+- [Canonical attendance event contract](docs/data-contracts/canonical-attendance-event.md)
 - [CI workflow](.github/workflows/ci.yml)
