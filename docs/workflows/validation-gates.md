@@ -7,19 +7,19 @@ commit creation, or pull request review.
 
 Always run:
 
-    .venv/bin/python -m ruff check .
+    ./scripts/validate.sh
 
-    .venv/bin/python -m black --check .
+The validation runner is the canonical local entry point. It runs, in order:
 
-    .venv/bin/python -m mypy src
+- Ruff lint: `python -m ruff check .`
+- Black format check: `python -m black --check .`
+- MyPy type check: `python -m mypy src`
+- Git whitespace check: `git diff --check`
 
-    git diff --check
+The runner resolves the Python interpreter from the active virtual environment
+when available, then `.venv`, then `python3`.
 
 Pending validation commands:
-
-    ./scripts/validate.sh
-    # Pending: dedicated validation runner
-    # Enable once the repository-level validation runner is implemented.
 
     .venv/bin/python -m pytest -q
     # Pending: ETLP-7
@@ -54,7 +54,8 @@ Install and run the hooks from the project development environment:
 
 The repository CI workflow is `.github/workflows/ci.yml`.
 CI must run on push and pull request events and enforce the mandatory lint,
-format, and type gates listed above.
+format, and type gates listed above. Local validation should use
+`./scripts/validate.sh`.
 
 Test execution remains pending until the pytest command is promoted from the
 pending validation commands.
