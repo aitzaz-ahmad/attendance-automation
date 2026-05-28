@@ -38,6 +38,18 @@ Pending validation commands:
 
 The repository treats formatting, linting, and typing as mandatory quality gates.
 
+## Pre-Commit Enforcement
+
+Pre-commit hooks are recommended for local enforcement before commit creation.
+They mirror the required Ruff, Black, and MyPy commands while keeping the
+required validation commands in this document as the source of truth.
+
+Install and run the hooks from the project development environment:
+
+    pre-commit install
+
+    pre-commit run --all-files
+
 ## Continuous Integration
 
 The repository CI workflow is `.github/workflows/ci.yml`.

@@ -19,6 +19,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
+pre-commit install
 python -m ruff check .
 python -m black --check .
 python -m mypy src
@@ -42,7 +43,37 @@ python -m pip install -e ".[dev]"
 ```
 
 The `dev` extra is defined in `pyproject.toml` and installs the configured
-local quality tools. Do not invent additional dependency groups.
+local quality tools, including `pre-commit`. Do not invent additional
+dependency groups.
+
+## Pre-Commit Hooks
+
+Install the local Git hook after installing the development tooling:
+
+```sh
+pre-commit install
+```
+
+The hook configuration lives in `.pre-commit-config.yaml`. Ruff, Black, and
+MyPy are invoked through the same project virtual environment commands used by
+the required validation gates, so their configuration remains centralized in
+`pyproject.toml`.
+
+Run the hooks manually against the files selected by pre-commit:
+
+```sh
+pre-commit run
+```
+
+Run the hooks across the full repository:
+
+```sh
+pre-commit run --all-files
+```
+
+The Black hook runs in check mode and does not rewrite files. Hygiene hooks may
+update whitespace or final newlines; if they do, review the resulting diff and
+rerun the hooks before committing.
 
 ## Local Validation
 
