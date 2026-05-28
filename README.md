@@ -1,8 +1,8 @@
 # Attendance Automation
 
 Attendance Automation is an ETL-oriented Python project for collecting attendance records from a ZKTeco
-biometric device, moving them through Google Cloud Pub/Sub and Google Cloud Functions, and preparing
-Google Sheets output for HR attendance review.
+biometric device, moving them through Google Pub/Sub and Google Cloud Functions, and preparing Google Sheets
+output for HR attendance review.
 
 [![CI](https://github.com/aitzaz-ahmad/attendance-automation/actions/workflows/ci.yml/badge.svg)](https://github.com/aitzaz-ahmad/attendance-automation/actions/workflows/ci.yml)
 
@@ -23,9 +23,8 @@ The system is organized around the canonical Python package namespace `attendanc
 logic under `attendance_etl.ingestion` and Google Cloud Function logic under `attendance_etl.functions`.
 
 At a high level, the ingestion client extracts records from a ZKTeco biometric device, filters and decodes
-the device data, and publishes work through Google Cloud Pub/Sub. Google Cloud Functions process review
-period, review sheet, and attendance record messages. Google Sheets remains the storage and review output
-used by HR.
+the device data, and publishes work through Google Pub/Sub. Google Cloud Functions process review period,
+review sheet, and attendance record messages. Google Sheets remains the storage and review output used by HR.
 
 The legacy Raspberry Pi 4 execution path is preserved as a compatibility wrapper at `src/pi4/pi4_client.py`.
 That wrapper delegates to `attendance_etl.ingestion.client`, which keeps the current device-oriented workflow
@@ -51,16 +50,8 @@ The intended data flow is:
 Extract -> Transform/Canonicalise -> Publish -> Process -> Store/Review
 ```
 
-- Extract: the ingestion client connects to the ZKTeco device and retrieves users and attendance records.
-- Transform/Canonicalise: current code decodes device records into Python dictionaries containing timestamp,
-  employee name, device identifier, and entry type. The target canonical attendance event contract is documented
-  in [Canonical Attendance Event](docs/data-contracts/canonical-attendance-event.md).
-- Publish: the ingestion client publishes JSON payloads to Google Cloud Pub/Sub topics for review-period,
-  review-sheet, and attendance-record workflows.
-- Process: Google Cloud Function modules under `attendance_etl.functions` process Pub/Sub events and coordinate
-  review-period lookup, review-sheet creation, and record storage.
-- Store/Review: processed attendance records are appended to Google Sheets worksheets used for attendance
-  review.
+For the ordered stage-by-stage pipeline, including current implementation paths and known limitations, see
+[Data Pipeline](docs/data-pipeline.md).
 
 ## Reliability Mechanisms
 
@@ -119,5 +110,6 @@ For setup, dependency installation, validation commands, and contribution workfl
 Key repository references:
 
 - [Agent operating instructions](AGENTS.md)
+- [Data pipeline](docs/data-pipeline.md)
 - [Canonical attendance event contract](docs/data-contracts/canonical-attendance-event.md)
 - [CI workflow](.github/workflows/ci.yml)
