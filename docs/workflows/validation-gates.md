@@ -38,6 +38,15 @@ Pending validation commands:
 
 The repository treats formatting, linting, and typing as mandatory quality gates.
 
+## Continuous Integration
+
+The repository CI workflow is `.github/workflows/ci.yml`.
+CI must run on push and pull request events and enforce the mandatory lint,
+format, and type gates listed above.
+
+Test execution remains pending until the pytest command is promoted from the
+pending validation commands.
+
 ## Scope Discipline
 
 Validation fixes must remain tightly scoped to the issue being implemented.
