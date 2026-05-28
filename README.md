@@ -41,8 +41,9 @@ current limitations, see [Architecture](docs/architecture.md).
 
 The intended data flow is:
 
-```text
-Extract -> Transform/Canonicalise -> Publish -> Process -> Store/Review
+```mermaid
+flowchart LR
+  Extract --> Canonicalise --> Publish --> Process --> StoreReview[Store / Review]
 ```
 
 For the ordered stage-by-stage pipeline, including current implementation paths and known limitations, see
@@ -50,10 +51,8 @@ For the ordered stage-by-stage pipeline, including current implementation paths 
 
 ## Reliability Mechanisms
 
-The ingestion workflow uses a finite state machine with checkpoint persistence, timeout-aware Pub/Sub waits,
-and retry/sleep paths for missing review metadata. The model is designed to let the compatibility Pi client
-resume from the last checkpointed non-waiting state after interruption without claiming exactly-once delivery
-or transactional recovery.
+The ingestion workflow uses a finite state machine with checkpoint persistence, retry paths, and interruption
+recovery behaviour designed to resume from the last checkpointed non-waiting state.
 
 ![Raspberry Pi client finite state machine](docs/diagrams/pi4-client-fsm.png "Raspberry Pi client finite state machine")
 
@@ -76,16 +75,8 @@ The repository currently contains:
 ## Future Roadmap
 
 Near-term work should stay focused on making the existing ETL system easier to reason about, test, and
-extend:
-
-- Adopt the canonical attendance event schema across transformation and downstream processing.
-- Document architecture and data contracts.
-- Add focused tests around ingestion and function behavior.
-- Isolate the transformation layer.
-- Introduce a device abstraction around biometric attendance extraction.
-- Introduce messaging and storage abstractions around Pub/Sub and Google Sheets boundaries.
-- Isolate reliability and finite state machine behavior for testability.
-- Continue repository and portfolio documentation polish.
+extend. For the post-MVP roadmap, including future PostgreSQL persistence, API layer, and reporting and
+analytics direction, see [Future Work](docs/future-work.md).
 
 ## Contributing
 
@@ -101,4 +92,5 @@ Key repository references:
 - [Data pipeline](docs/data-pipeline.md)
 - [Reliability model](docs/reliability.md)
 - [Canonical attendance event contract](docs/contracts/canonical-attendance-event.md)
+- [Future work](docs/future-work.md)
 - [CI workflow](.github/workflows/ci.yml)
