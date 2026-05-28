@@ -9,7 +9,7 @@ scoped issue explicitly changes them.
 ## Contract Documents
 
 - [Canonical attendance event](canonical-attendance-event.md): target internal payload shape for one
-  normalised attendance record.
+  normalised attendance event extracted from a source biometric device.
 
 ## Contract Areas
 
