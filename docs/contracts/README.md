@@ -1,13 +1,19 @@
 # Contracts
 
-This directory is reserved for repository-level behavioural and data contracts.
+This directory contains repository-level behavioural and data contracts, including payload contracts shared
+across architecture, pipeline, and implementation work.
 
 Contracts define semantics that implementation agents must preserve unless a
 scoped issue explicitly changes them.
 
+## Contract Documents
+
+- [Canonical attendance event](canonical-attendance-event.md): target internal payload shape for one
+  normalised attendance record.
+
 ## Contract Areas
 
-Future contract documents may cover:
+Contract documents may cover:
 
 - metadata semantics
 - canonical event schema rules

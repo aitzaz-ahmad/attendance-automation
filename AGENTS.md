@@ -36,6 +36,20 @@ and prevent architectural drift from unrelated repository areas.
 
 ---
 
+## Documentation Ownership
+
+- `README.md` is the high-level project overview and navigation surface.
+- `docs/architecture.md` is the canonical system architecture document.
+- `docs/data-pipeline.md` owns ETL stage sequencing and processing flow.
+- `docs/reliability.md` owns runtime recovery and FSM reliability semantics.
+- `docs/contracts/` owns repository-level behavioural and data contracts.
+- `docs/diagrams/` stores diagram assets only.
+- `docs/workflows/` owns contributor and AI-agent workflow rules.
+
+Do not duplicate detailed content across these documents. Prefer linking to the owning document.
+
+---
+
 ## Required Context Discovery
 
 Before starting work, review the documents relevant to the assigned task.

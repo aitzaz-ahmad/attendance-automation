@@ -11,9 +11,9 @@ The intended sequence is:
 Device polling -> Raw record normalisation -> Canonicalisation -> Event publication -> Backend processing -> Persistence / review output
 ```
 
-This sequence is consistent with the Mermaid system flow in
-[System Architecture](diagrams/system-architecture.md): source device, ingestion runtime, canonical
-attendance event contract target, messaging, serverless processing, and Google Sheets output.
+This sequence is consistent with the Mermaid system flow in [Architecture](architecture.md): source device,
+ingestion runtime, canonical attendance event contract target, messaging, serverless processing, and Google
+Sheets output.
 
 ## Pipeline Stages
 
@@ -21,7 +21,7 @@ attendance event contract target, messaging, serverless processing, and Google S
 | --- | --- | --- | --- | --- |
 | 1. Device polling / extraction | `attendance_etl.ingestion.client`, available through `src/pi4/pi4_client.py` compatibility wrapper | ZKTeco biometric device users and attendance records | Device user list and raw attendance records | Implemented for the current ZKTeco device path |
 | 2. Raw record normalisation | `src/attendance_etl/ingestion/client.py` | Raw ZKTeco users and attendance records filtered by review timestamp | Transitional Python dictionaries with `username`, `timestamp`, `entry`, and `device` fields | Implemented as device-specific decoding |
-| 3. Canonicalisation | Target contract in `docs/data-contracts/canonical-attendance-event.md` | Normalised source/device records | Canonical attendance event payload | Documented target; not fully adopted by runtime publishing yet |
+| 3. Canonicalisation | Target contract in `docs/contracts/canonical-attendance-event.md` | Normalised source/device records | Canonical attendance event payload | Documented target; not fully adopted by runtime publishing yet |
 | 4. Event publication | `src/attendance_etl/ingestion/client.py` Google Pub/Sub publishing helpers | Review-period requests, review-sheet requests, and attendance record payloads | JSON messages on Google Pub/Sub topics | Implemented with transitional attendance record payloads |
 | 5. Backend / serverless processing | Google Cloud Functions deployment wrappers under `src/backend/*/main.py`, delegating to `attendance_etl.functions` | Google Pub/Sub event payloads | Review-period responses, review-sheet metadata, stored attendance updates, and last-stored timestamps | Implemented for current review-period, review-sheet, and attendance-record workflows |
 | 6. Persistence / review output | `src/attendance_etl/functions/store_attend_records.py` and Google Sheets APIs | Attendance record messages and review sheet metadata | Google Sheets raw data, daily attendance, weekly summary, and last-stored timestamp response | Implemented for Google Sheets attendance review output |
@@ -59,7 +59,7 @@ Python dictionaries used by the current storage workflow.
 ### 3. Canonicalisation
 
 Canonicalisation is the intended transformation from source/device records into the documented
-[canonical attendance event](data-contracts/canonical-attendance-event.md) contract.
+[canonical attendance event](contracts/canonical-attendance-event.md) contract.
 
 - Purpose: provide a stable internal event shape for downstream publication, processing, and future storage.
 - Current status: the canonical attendance event contract is documented, and the architecture diagram

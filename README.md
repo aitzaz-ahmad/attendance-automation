@@ -34,13 +34,8 @@ runnable while the package moves toward more hardware-neutral ingestion terminol
 
 ![High-level architecture diagram](docs/diagrams/high-level-architecture.png "High-level architecture diagram")
 
-The architecture uses a pull-publish model between the ingestion client and the serverless backend. The
-client pulls attendance records from the biometric device and publishes messages to Pub/Sub. Cloud Function
-handlers consume those messages, interact with review-period and review-sheet data, and write attendance
-review output to Google Sheets.
-
-For a Mermaid view of the current system flow, see
-[System Architecture](docs/diagrams/system-architecture.md).
+For the canonical system architecture, including the Mermaid topology diagram, component boundaries, and
+current limitations, see [Architecture](docs/architecture.md).
 
 ## Data Pipeline
 
@@ -55,25 +50,14 @@ For the ordered stage-by-stage pipeline, including current implementation paths 
 
 ## Reliability Mechanisms
 
-The ingestion workflow is modeled as a finite state machine with explicit states for review-period lookup,
-review-sheet creation, attendance relay, last-stored timestamp handling, expired review periods, and alarm
-paths.
+The ingestion workflow uses a finite state machine with checkpoint persistence, timeout-aware Pub/Sub waits,
+and retry/sleep paths for missing review metadata. The model is designed to let the compatibility Pi client
+resume from the last checkpointed non-waiting state after interruption without claiming exactly-once delivery
+or transactional recovery.
 
 ![Raspberry Pi client finite state machine](docs/diagrams/pi4-client-fsm.png "Raspberry Pi client finite state machine")
 
-Current reliability mechanisms visible in the code and diagrams include:
-
-- A local `snapshot.json` checkpoint file that stores the client state, system flags, review sheet ID, and
-  last stored timestamp.
-- Checkpointing on non-waiting states so the client can resume after shutdown without re-entering a Pub/Sub
-  waiting state.
-- Timeout and power-failure recovery paths represented in the finite state machine.
-- An explicit final-alarm path for missing review-period information, with notification delivery still marked
-  as a TODO in code.
-- A deep-sleep path when the next review period is unavailable.
-- Last-stored timestamp tracking to avoid resending records that were already persisted.
-
-For the concise recovery model, see [Reliability Model](docs/reliability.md).
+For the detailed recovery model, see [Reliability Model](docs/reliability.md).
 
 ## Current Implementation
 
@@ -112,7 +96,9 @@ For setup, dependency installation, validation commands, and contribution workfl
 Key repository references:
 
 - [Agent operating instructions](AGENTS.md)
+- [Documentation index](docs/README.md)
+- [Architecture](docs/architecture.md)
 - [Data pipeline](docs/data-pipeline.md)
 - [Reliability model](docs/reliability.md)
-- [Canonical attendance event contract](docs/data-contracts/canonical-attendance-event.md)
+- [Canonical attendance event contract](docs/contracts/canonical-attendance-event.md)
 - [CI workflow](.github/workflows/ci.yml)
