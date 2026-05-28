@@ -73,6 +73,8 @@ Current reliability mechanisms visible in the code and diagrams include:
 - A deep-sleep path when the next review period is unavailable.
 - Last-stored timestamp tracking to avoid resending records that were already persisted.
 
+For the concise recovery model, see [Reliability Model](docs/reliability.md).
+
 ## Current Implementation
 
 The repository currently contains:
@@ -111,5 +113,6 @@ Key repository references:
 
 - [Agent operating instructions](AGENTS.md)
 - [Data pipeline](docs/data-pipeline.md)
+- [Reliability model](docs/reliability.md)
 - [Canonical attendance event contract](docs/data-contracts/canonical-attendance-event.md)
 - [CI workflow](.github/workflows/ci.yml)
