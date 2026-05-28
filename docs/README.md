@@ -5,6 +5,7 @@
 - [Architecture](architecture.md)
 - [Data pipeline](data-pipeline.md)
 - [Reliability model](reliability.md)
+- [Future work](future-work.md)
 
 ## Contracts
 
