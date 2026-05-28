@@ -10,6 +10,7 @@ branching, commits, validation, and pull request preparation.
 - `issue-lifecycle.md` — GitHub issue lifecycle and status expectations.
 - `branch-strategy.md` — branch naming and branch flow.
 - `commit-conventions.md` — commit message format and commit hygiene.
+- `local-development.md` — fresh-clone setup and local validation workflow.
 - `validation-gates.md` — required validation commands and reporting expectations.
 
 ## Usage
