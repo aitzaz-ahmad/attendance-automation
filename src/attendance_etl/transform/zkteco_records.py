@@ -1,10 +1,15 @@
+from attendance_etl.logging_utils import get_logger
+
+logger = get_logger("RecordTransformer")
+
+
 def convert_to_map(zk_users):
     """
     converts the list of users fetched from the biometric device
     to a user id vs name map to allow a O(1) lookup for generating
     a human readable equivalent of the attendance entries.
     """
-    print("Generating user id to name mapping for {} users...".format(len(zk_users)))
+    logger.debug("Generating user id to name mapping for %s users...", len(zk_users))
     user_mapping = {}
     for zk_user in zk_users:
         user_mapping[zk_user.user_id] = zk_user.name
@@ -57,7 +62,7 @@ def filter_records(records, from_timestamp, to_timestamp=None):
     if to_timestamp is None:
         filtered_records = [record for record in records if record.timestamp > from_timestamp]
     elif to_timestamp <= from_timestamp:
-        print("Error: Invalid input arguments - to_timstamp must be greater than from_timestamp")
+        logger.warning("Error: Invalid input arguments - to_timstamp must be greater than from_timestamp")
     else:
         filtered_records = [
             record for record in records if (record.timestamp > from_timestamp and record.timestamp <= to_timestamp)

@@ -1,6 +1,9 @@
 from zk import ZK
 
 from attendance_etl import config
+from attendance_etl.logging_utils import get_logger
+
+logger = get_logger("DeviceClient")
 
 
 class ZKTecoDevice:
@@ -29,19 +32,19 @@ def clear_records_from_device(device_ip, comm_port):
         ommit_ping=config.ZKTECO_OMMIT_PING,
     )
     try:
-        print("Connecting to device ...")
+        logger.info("Connecting to device ...")
         conn = zk.connect()
-        print("Disabling device ...")
+        logger.info("Disabling device ...")
         conn.disable_device()
-        print("Firmware Version: : {}".format(conn.get_firmware_version()))
+        logger.info("Firmware Version: : %s", conn.get_firmware_version())
 
-        print("deleting all attendance records stored on the biometric device")
+        logger.info("deleting all attendance records stored on the biometric device")
         conn.clear_attendance()
 
-        print("Enabling device ...")
+        logger.info("Enabling device ...")
         conn.enable_device()
     except Exception as e:
-        print("Process terminate : {}".format(e))
+        logger.error("Process terminate : %s", e)
     finally:
         if conn:
             conn.disconnect()
@@ -64,21 +67,21 @@ def pull_records_from_device(device_ip, comm_port):
         users = []
         records = []
 
-        print("Connecting to device ...")
+        logger.info("Connecting to device ...")
         conn = zk.connect()
-        print("Disabling device ...")
+        logger.info("Disabling device ...")
         conn.disable_device()
-        print("Firmware Version: : {}".format(conn.get_firmware_version()))
+        logger.info("Firmware Version: : %s", conn.get_firmware_version())
 
-        print("Fetching list of users...")
+        logger.info("Fetching list of users...")
         users = conn.get_users()
-        print("Fetching attendance records...")
+        logger.info("Fetching attendance records...")
         records = conn.get_attendance()
 
-        print("Enabling device ...")
+        logger.info("Enabling device ...")
         conn.enable_device()
     except Exception as e:
-        print("Process terminate : {}".format(e))
+        logger.error("Process terminate : %s", e)
     finally:
         if conn:
             conn.disconnect()

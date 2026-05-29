@@ -1,12 +1,16 @@
 import json
+import logging
 
 from attendance_etl import config
 from attendance_etl.device.zkteco import ZKTecoDevice
+from attendance_etl.logging_utils import configure_logging, get_logger
 from attendance_etl.messaging.pubsub import PubSubMessenger
 from attendance_etl.pi4.state import Pi4RuntimeState
 from attendance_etl.pi4.workflow import Pi4Workflow
 from attendance_etl.storage.review_period import ReviewPeriodStore
 from attendance_etl.storage.snapshot import SnapshotStore
+
+logger = get_logger("Pi4Runtime")
 
 
 def setup_device_info(path=config.BIOMETRIC_DEVICE_CONFIG_FILE):
@@ -17,7 +21,7 @@ def setup_device_info(path=config.BIOMETRIC_DEVICE_CONFIG_FILE):
     with open(path) as json_file:
         device_info = json.load(json_file)
 
-    print("device config: ", device_info)
+    logger.info("device config: %s", device_info)
     return device_info
 
 
@@ -28,17 +32,20 @@ def load_snapshot_into_state(snapshot_store, state):
     state.review_sheet_id = snapshot["sheet_id"]
     state.last_stored_timestamp = snapshot["last_stored_timestamp"]
 
-    msg = "pi4 state = {}, review sheet id = {}, last stored timestamp = {}"
-    print(
-        "loaded snapshot: \n",
-        msg.format(state.pi4_state, state.review_sheet_id, state.last_stored_timestamp),
+    logger.info(
+        "loaded snapshot: pi4 state = %s, review sheet id = %s, last stored timestamp = %s",
+        state.pi4_state,
+        state.review_sheet_id,
+        state.last_stored_timestamp,
     )
 
 
-def bootstrap_pi4():
+def bootstrap_pi4(verbosity=logging.INFO):
     """
     Add annotation
     """
+    configure_logging(verbosity)
+
     state = Pi4RuntimeState()
 
     state.device_info = setup_device_info()
@@ -49,7 +56,7 @@ def bootstrap_pi4():
     review_period_store = ReviewPeriodStore()
 
     state.review_period_info = review_period_store.load()
-    print("review period info: ", state.review_period_info)
+    logger.info("review period info: %s", state.review_period_info)
 
     load_snapshot_into_state(snapshot_store, state)
 

@@ -1,6 +1,9 @@
 import json
 
 from attendance_etl import config
+from attendance_etl.logging_utils import get_logger
+
+logger = get_logger("MessagingClient")
 
 
 class PubSubMessenger:
@@ -39,8 +42,7 @@ def publish_message_to_topic(project_id, topic_name, data):
     # the script execution will get blocked on the following call until a
     # message has been successfully published
     message_id = future_response.result()
-    log_msg = "message id: {}, payload: {}, published to {} topic."
-    print(log_msg.format(message_id, payload, topic_name))
+    logger.info("message id: %s, payload: %s, published to %s topic.", message_id, payload, topic_name)
 
 
 def subscription_exists(topic_name, subscription_name, project_id=config.PROJECT_ID):
@@ -114,8 +116,7 @@ def sync_pull_message(subscription_name, device_identifier, project_id=config.PR
     msg_receipt = False
     # keep trying until the intended message is not received
     while not msg_receipt:
-        log_msg = "waiting for message from {} subscription..."
-        print(log_msg.format(subscription_name))
+        logger.info("waiting for message from %s subscription...", subscription_name)
         response = subscriber.pull(
             subscription_path,
             max_messages=config.MAX_LIMIT,
@@ -130,8 +131,7 @@ def sync_pull_message(subscription_name, device_identifier, project_id=config.PR
             if msg_receipt:
                 payload = received_message.message.data
                 msg_data = json.loads(payload.decode("utf-8"))
-                log_msg = "message received from {} subscription successfully"
-                print(log_msg.format(subscription_name))
+                logger.info("message received from %s subscription successfully", subscription_name)
 
         if len(ack_ids) > 0:  # attempt to ACK iff messages were received
             # acknowledges the received messages so they will not be sent
