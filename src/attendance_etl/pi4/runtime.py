@@ -1,5 +1,6 @@
 import json
 
+from attendance_etl import config
 from attendance_etl.device.zkteco import ZKTecoDevice
 from attendance_etl.messaging.pubsub import PubSubMessenger
 from attendance_etl.pi4.state import Pi4RuntimeState
@@ -7,11 +8,8 @@ from attendance_etl.pi4.workflow import Pi4Workflow
 from attendance_etl.storage.review_period import ReviewPeriodStore
 from attendance_etl.storage.snapshot import SnapshotStore
 
-# constants defined for on-disk files
-BIOMETRIC_DEVICE_CONFIG_FILE = "biometric_device_config.json"
 
-
-def setup_device_info(path=BIOMETRIC_DEVICE_CONFIG_FILE):
+def setup_device_info(path=config.BIOMETRIC_DEVICE_CONFIG_FILE):
     """
     loads the configuration details of the attendance devices
     from the configuration file

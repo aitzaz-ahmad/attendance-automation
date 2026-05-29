@@ -1,28 +1,15 @@
 import json
 
-# constants defined for GCP pub/sub message exchange
-PROJECT_ID = "attend1"
-GET_REVIEW_PERIOD_TOPIC = "get_review_period"
-NEW_REVIEW_PERIOD_TOPIC = "new_review_period"
-CREATE_REVIEW_SHEET_TOPIC = "create_review_sheet"
-NEW_REVIEW_SHEET_TOPIC = "new_review_sheet"
-STORE_ATTEND_RECORDS_TOPIC = "store_attend_records"
-LAST_STORED_TIMESTAMP_TOPIC = "last_stored_timestamp"
-
-SUBSCRIPTION_NAME = "sub_{}_{}"
-ACK_DEADLINE = 10  # lease time (in seconds) to acknowledge the receipt of a message
-SUBSCRIPTION_TTL = 7776000  # 90 days (in seconds)
-MAX_LIMIT = 1
-PULL_MSG_TIMEOUT = 30.0  # How long the subscriber should listen for messages in seconds
+from attendance_etl import config
 
 
 class PubSubMessenger:
-    def __init__(self, device_identifier, project_id=PROJECT_ID):
+    def __init__(self, device_identifier, project_id=config.PROJECT_ID):
         self.device_identifier = device_identifier
         self.project_id = project_id
 
     def subscription_name(self, topic_name):
-        return SUBSCRIPTION_NAME.format(topic_name, self.device_identifier)
+        return config.SUBSCRIPTION_NAME.format(topic_name, self.device_identifier)
 
     def publish_message_to_topic(self, topic_name, data):
         publish_message_to_topic(self.project_id, topic_name, data)
@@ -56,7 +43,7 @@ def publish_message_to_topic(project_id, topic_name, data):
     print(log_msg.format(message_id, payload, topic_name))
 
 
-def subscription_exists(topic_name, subscription_name, project_id=PROJECT_ID):
+def subscription_exists(topic_name, subscription_name, project_id=config.PROJECT_ID):
     """
     checks whether the subscription exists against the input topic or not
     """
@@ -75,7 +62,7 @@ def subscription_exists(topic_name, subscription_name, project_id=PROJECT_ID):
     return retVal
 
 
-def create_subscription(topic_name, subscription_name, project_id=PROJECT_ID):
+def create_subscription(topic_name, subscription_name, project_id=config.PROJECT_ID):
     """
     creates a gcp pub/sub subscription for the input topic name if it
     does not exist
@@ -89,12 +76,12 @@ def create_subscription(topic_name, subscription_name, project_id=PROJECT_ID):
         subscriber = pubsub_v1.SubscriberClient()
         sub_path = subscriber.subscription_path(project_id, subscription_name)
         topic_path = subscriber.topic_path(project_id, topic_name)
-        ttl_duration = duration_pb2.Duration(seconds=SUBSCRIPTION_TTL)
+        ttl_duration = duration_pb2.Duration(seconds=config.SUBSCRIPTION_TTL)
         expiration_policy = pubsub_v1.types.ExpirationPolicy(ttl=ttl_duration)
         subscriber.create_subscription(
             name=sub_path,
             topic=topic_path,
-            ack_deadline_seconds=ACK_DEADLINE,
+            ack_deadline_seconds=config.ACK_DEADLINE,
             expiration_policy=expiration_policy,
         )
 
@@ -113,7 +100,7 @@ def is_directed_to_device(pubsub_message, device_identifier):
     return for_me
 
 
-def sync_pull_message(subscription_name, device_identifier, project_id=PROJECT_ID):
+def sync_pull_message(subscription_name, device_identifier, project_id=config.PROJECT_ID):
     """
     synchronously pulls pub/sub messages from the input subscription_name
     until a message targeted for this Raspberry Pi4 device is received
@@ -129,7 +116,11 @@ def sync_pull_message(subscription_name, device_identifier, project_id=PROJECT_I
     while not msg_receipt:
         log_msg = "waiting for message from {} subscription..."
         print(log_msg.format(subscription_name))
-        response = subscriber.pull(subscription_path, max_messages=MAX_LIMIT, timeout=PULL_MSG_TIMEOUT)
+        response = subscriber.pull(
+            subscription_path,
+            max_messages=config.MAX_LIMIT,
+            timeout=config.PULL_MSG_TIMEOUT,
+        )
 
         ack_ids = []
         for received_message in response.received_messages:

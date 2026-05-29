@@ -1,11 +1,10 @@
 import json
 
-# constants defined for on-disk files
-SNAPSHOT_FILE = "snapshot.json"
+from attendance_etl import config
 
 
 class SnapshotStore:
-    def __init__(self, path=SNAPSHOT_FILE):
+    def __init__(self, path=config.SNAPSHOT_FILE):
         self.path = path
 
     def load(self):
@@ -21,7 +20,7 @@ class SnapshotStore:
         )
 
 
-def load_snapshot(path=SNAPSHOT_FILE):
+def load_snapshot(path=config.SNAPSHOT_FILE):
     """
     loads the snapshot captured during checkpointing to resume operation
     without losing state information in case of a (device) shutdown
@@ -30,7 +29,13 @@ def load_snapshot(path=SNAPSHOT_FILE):
         return json.load(json_file)
 
 
-def save_snapshot(pi4_state, system_flags, review_sheet_id, last_stored_timestamp, path=SNAPSHOT_FILE):
+def save_snapshot(
+    pi4_state,
+    system_flags,
+    review_sheet_id,
+    last_stored_timestamp,
+    path=config.SNAPSHOT_FILE,
+):
     """
     saves the runtime snapshot to disk using the legacy JSON shape.
     """
