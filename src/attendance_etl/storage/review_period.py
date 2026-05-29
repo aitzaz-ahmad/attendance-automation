@@ -1,11 +1,10 @@
 import json
 
-# constants defined for on-disk files
-REVIEW_PERIOD_JSON = "review_period.json"
+from attendance_etl import config
 
 
 class ReviewPeriodStore:
-    def __init__(self, path=REVIEW_PERIOD_JSON):
+    def __init__(self, path=config.REVIEW_PERIOD_JSON):
         self.path = path
 
     def load(self):
@@ -15,7 +14,7 @@ class ReviewPeriodStore:
         save_review_period(review_period_info, self.path)
 
 
-def load_review_period(path=REVIEW_PERIOD_JSON):
+def load_review_period(path=config.REVIEW_PERIOD_JSON):
     """
     loads the review period information from the json file
     """
@@ -23,7 +22,7 @@ def load_review_period(path=REVIEW_PERIOD_JSON):
         return json.load(json_file)
 
 
-def save_review_period(review_period_info, path=REVIEW_PERIOD_JSON):
+def save_review_period(review_period_info, path=config.REVIEW_PERIOD_JSON):
     """
     saves the review period json to the disk
     """

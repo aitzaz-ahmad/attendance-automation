@@ -2,14 +2,7 @@ import time
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, cast
 
-from attendance_etl.messaging.pubsub import (
-    CREATE_REVIEW_SHEET_TOPIC,
-    GET_REVIEW_PERIOD_TOPIC,
-    LAST_STORED_TIMESTAMP_TOPIC,
-    NEW_REVIEW_PERIOD_TOPIC,
-    NEW_REVIEW_SHEET_TOPIC,
-    STORE_ATTEND_RECORDS_TOPIC,
-)
+from attendance_etl import config
 from attendance_etl.pi4.state import (
     AWAIT_LAST_STORED_TIMESTAMP,
     AWAIT_REVIEW_PERIOD,
@@ -24,10 +17,6 @@ from attendance_etl.pi4.state import (
     WAITING_STATES,
 )
 from attendance_etl.transform.zkteco_records import convert_to_map, decode_zk_format, filter_records
-
-# constants defined for delay/sleep intervals
-POLLING_DELAY = timedelta(minutes=15)
-DEEP_SLEEP_DURATION = timedelta(hours=1)
 
 
 class Pi4Workflow:
@@ -109,11 +98,11 @@ class Pi4Workflow:
             # consider Sunday as the last day of this review period
             last_day += timedelta(days=2)
 
-        wait_duration = POLLING_DELAY
+        wait_duration = config.POLLING_DELAY
         if now.date() == last_day.date():
             # today's the last day of this review period
             delta_midnight = last_day + timedelta(days=1) - now
-            wait_duration = min(POLLING_DELAY, delta_midnight)
+            wait_duration = min(config.POLLING_DELAY, delta_midnight)
 
         return wait_duration
 
@@ -150,7 +139,7 @@ class Pi4Workflow:
         # at this point the REVIEW_PERIOD_INFO object contains the details of
         # the attendance review period that just ended i.e. the previous review
         # period
-        self.messenger.publish_message_to_topic(GET_REVIEW_PERIOD_TOPIC, self.state.review_period_info)
+        self.messenger.publish_message_to_topic(config.GET_REVIEW_PERIOD_TOPIC, self.state.review_period_info)
 
         self.transition_state(AWAIT_REVIEW_PERIOD)
 
@@ -158,8 +147,8 @@ class Pi4Workflow:
         """
         executes the logic for handling the AWAIT_REVIEW_PERIOD state
         """
-        subscription_name = self.messenger.subscription_name(NEW_REVIEW_PERIOD_TOPIC)
-        self.messenger.create_subscription(NEW_REVIEW_PERIOD_TOPIC, subscription_name)
+        subscription_name = self.messenger.subscription_name(config.NEW_REVIEW_PERIOD_TOPIC)
+        self.messenger.create_subscription(config.NEW_REVIEW_PERIOD_TOPIC, subscription_name)
         new_review_period = self.messenger.sync_pull_message(subscription_name)
 
         next_state = None
@@ -201,7 +190,7 @@ class Pi4Workflow:
         executes the logic for handling the NO_REVIEW_PERIOD state
         """
         # enter a deep sleep, re-check for the next review period on wake up!
-        time.sleep(DEEP_SLEEP_DURATION.total_seconds())
+        time.sleep(config.DEEP_SLEEP_DURATION.total_seconds())
         self.transition_state(FETCH_REVIEW_PERIOD)
 
     def handler_request_review_sheet(self):
@@ -210,7 +199,7 @@ class Pi4Workflow:
         """
         # in this state the REVIEW_PERIOD_INFO object contains the information of
         # the new attendance review period that is about to begin
-        self.messenger.publish_message_to_topic(CREATE_REVIEW_SHEET_TOPIC, self.state.review_period_info)
+        self.messenger.publish_message_to_topic(config.CREATE_REVIEW_SHEET_TOPIC, self.state.review_period_info)
 
         self.transition_state(AWAIT_REVIEW_SHEET)
 
@@ -218,8 +207,8 @@ class Pi4Workflow:
         """
         executes the logic for handling the AWAIT_REVIEW_SHEET state
         """
-        subscription_name = self.messenger.subscription_name(NEW_REVIEW_SHEET_TOPIC)
-        self.messenger.create_subscription(NEW_REVIEW_SHEET_TOPIC, subscription_name)
+        subscription_name = self.messenger.subscription_name(config.NEW_REVIEW_SHEET_TOPIC)
+        self.messenger.create_subscription(config.NEW_REVIEW_SHEET_TOPIC, subscription_name)
         new_review_sheet = self.messenger.sync_pull_message(subscription_name)
 
         # store the review sheet id of the Attendance Review sheet for the new
@@ -258,15 +247,15 @@ class Pi4Workflow:
             request_params["device_id"] = self.device_info()["identifier"]
             request_params["start_date"] = review_period_info["start_date"]
             request_params["records"] = new_records
-            self.messenger.publish_message_to_topic(STORE_ATTEND_RECORDS_TOPIC, request_params)
+            self.messenger.publish_message_to_topic(config.STORE_ATTEND_RECORDS_TOPIC, request_params)
             self.transition_state(AWAIT_LAST_STORED_TIMESTAMP)
 
     def handler_await_last_stored_timestamp(self):
         """
         executes the logic for handling the AWAIT_LAST_STORED_TIMESTAMP state
         """
-        subscription_name = self.messenger.subscription_name(LAST_STORED_TIMESTAMP_TOPIC)
-        self.messenger.create_subscription(LAST_STORED_TIMESTAMP_TOPIC, subscription_name)
+        subscription_name = self.messenger.subscription_name(config.LAST_STORED_TIMESTAMP_TOPIC)
+        self.messenger.create_subscription(config.LAST_STORED_TIMESTAMP_TOPIC, subscription_name)
         last_stored_record = self.messenger.sync_pull_message(subscription_name)
 
         # update the timestamp of the most recent attendance record saved

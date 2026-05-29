@@ -1,7 +1,6 @@
 from zk import ZK
 
-# constant(s) for communicating with the zkteco biometric device
-DEVICE_TIME_OUT = 10
+from attendance_etl import config
 
 
 class ZKTecoDevice:
@@ -25,9 +24,9 @@ def clear_records_from_device(device_ip, comm_port):
     zk = ZK(
         device_ip,
         port=comm_port,
-        timeout=DEVICE_TIME_OUT,
-        force_udp=False,
-        ommit_ping=False,
+        timeout=config.ZKTECO_TIMEOUT,
+        force_udp=config.ZKTECO_FORCE_UDP,
+        ommit_ping=config.ZKTECO_OMMIT_PING,
     )
     try:
         print("Connecting to device ...")
@@ -57,9 +56,9 @@ def pull_records_from_device(device_ip, comm_port):
     zk = ZK(
         device_ip,
         port=comm_port,
-        timeout=DEVICE_TIME_OUT,
-        force_udp=False,
-        ommit_ping=False,
+        timeout=config.ZKTECO_TIMEOUT,
+        force_udp=config.ZKTECO_FORCE_UDP,
+        ommit_ping=config.ZKTECO_OMMIT_PING,
     )
     try:
         users = []
