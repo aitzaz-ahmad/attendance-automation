@@ -91,6 +91,7 @@ The Raspberry Pi ingestion client is split into focused package modules:
 - `attendance_etl.storage.snapshot` and `attendance_etl.storage.review_period` own the existing JSON files.
 - `attendance_etl.pi4.state`, `attendance_etl.pi4.workflow`, and `attendance_etl.pi4.runtime` own Pi state,
   finite-state-machine behavior, and runtime composition.
+- `attendance_etl.logging_utils` owns shared logging setup and responsibility-oriented logger acquisition.
 
 The ingestion runtime currently publishes transitional attendance dictionaries. Runtime enforcement of the
 canonical attendance event contract is future work.

@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, cast
 
 from attendance_etl import config
+from attendance_etl.logging_utils import get_logger
 from attendance_etl.pi4.state import (
     AWAIT_LAST_STORED_TIMESTAMP,
     AWAIT_REVIEW_PERIOD,
@@ -17,6 +18,8 @@ from attendance_etl.pi4.state import (
     WAITING_STATES,
 )
 from attendance_etl.transform.zkteco_records import convert_to_map, decode_zk_format, filter_records
+
+logger = get_logger("Pi4Workflow")
 
 
 class Pi4Workflow:
@@ -56,20 +59,20 @@ class Pi4Workflow:
         records based on the from_date and to_date time frame, and decodes the
         filtered records from the zkteco format before returning them
         """
-        print("get_attendance_records invoked!")
+        logger.debug("get_attendance_records invoked")
 
         device_info = self.device_info()
         device_tag = device_info["identifier"]
-        print("fetching data from device {}".format(device_tag))
+        logger.info("fetching data from device %s", device_tag)
         users, records = self.device.pull_records()
-        print("filtering attendance records since ", from_date.strftime("%d-%m-%Y %H:%M:%S"))
+        logger.info("filtering attendance records since %s", from_date.strftime("%d-%m-%Y %H:%M:%S"))
         unsaved_records = filter_records(records, from_date, to_date)
-        print("{} unsaved attendance records found".format(len(unsaved_records)))
+        logger.info("%s unsaved attendance records found", len(unsaved_records))
         user_mapping = convert_to_map(users)
-        print("decoding unsaved records from zkteco format...")
+        logger.debug("decoding unsaved records from zkteco format...")
         decoded_records = decode_zk_format(unsaved_records, user_mapping, device_tag)
 
-        print("{} attendance records decoded".format(len(decoded_records)))
+        logger.info("%s attendance records decoded", len(decoded_records))
 
         return decoded_records
 
@@ -214,7 +217,7 @@ class Pi4Workflow:
         # store the review sheet id of the Attendance Review sheet for the new
         # review period
         self.state.review_sheet_id = new_review_sheet["id"]
-        print("saving sheet id of {} sheet".format(new_review_sheet["name"]))
+        logger.info("saving sheet id of %s sheet", new_review_sheet["name"])
 
         self.transition_state(RELAY_ATTENDANCE_RECORDS)
 
@@ -288,7 +291,7 @@ class Pi4Workflow:
             # there are no unsaved attendance records on the biometric device,
             # therefore, it is safe to delete all attendance data from the device
             device_tag = self.device_info()["identifier"]
-            print("deleting attendance records from device {}".format(device_tag))
+            logger.info("deleting attendance records from device %s", device_tag)
             self.device.clear_records()
 
         self.state.review_sheet_id = self.state.last_stored_timestamp = None
