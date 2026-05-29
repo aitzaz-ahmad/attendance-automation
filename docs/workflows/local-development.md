@@ -106,6 +106,41 @@ python -m compileall src
 This compile check is optional and does not replace the required validation
 gates.
 
+## Version Management
+
+The canonical project version is `project.version` in `pyproject.toml`.
+Version updates are managed manually with Bump My Version through the
+configuration in `pyproject.toml`.
+
+After installing the development tooling, bump the version with one of:
+
+```sh
+.venv/bin/bump-my-version bump patch
+.venv/bin/bump-my-version bump minor
+.venv/bin/bump-my-version bump major
+```
+
+Review the resulting diff before committing, then run:
+
+```sh
+./scripts/validate.sh
+```
+
+To inspect the configured bump without applying it, run:
+
+```sh
+.venv/bin/bump-my-version bump --dry-run --allow-dirty -vv patch
+```
+
+The verbose dry run prints the planned version change and file update while
+leaving the working tree unchanged. Version consistency should be checked by
+reviewing the `pyproject.toml` diff and by running the canonical validation
+runner.
+
+This setup is local/manual version management only. Future release automation
+may reuse the same configuration, but no release workflow, automatic tagging,
+publishing, or push behavior is configured.
+
 ## Common Pitfalls
 
 - Forgetting to activate `.venv` and accidentally using global tools.
@@ -114,3 +149,4 @@ gates.
 - Treating `pytest` as mandatory before project test tooling is configured.
 - Assuming every Cloud Function dependency is a root package dependency; some
   function dependencies remain per-function.
+- Running a version bump without reviewing the diff before commit creation.
