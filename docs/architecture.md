@@ -22,7 +22,8 @@ flowchart LR
 
   subgraph IR[Ingestion Runtime]
     PI[src/pi4/pi4_client.py compatibility Pi client]
-    ING[attendance_etl.ingestion client]
+    ING[attendance_etl.ingestion compatibility facade]
+    PI4[attendance_etl.pi4 runtime and workflow]
     EVENT[Canonical attendance event contract target]
   end
 
@@ -45,7 +46,8 @@ flowchart LR
 
   ZK --> PI
   PI --> ING
-  ING --> EVENT
+  ING --> PI4
+  PI4 --> EVENT
   EVENT --> PUBSUB
   PUBSUB --> WRAP
   WRAP --> FUNC
@@ -66,16 +68,29 @@ reads users and attendance records, and decodes device-specific fields before pu
 ### Ingestion Runtime And Pi Compatibility Client
 
 The legacy Raspberry Pi 4 execution path remains available at `src/pi4/pi4_client.py`. It is a compatibility
-entry point that delegates to the canonical ingestion module under `attendance_etl.ingestion`, preserving the
-current runnable device workflow while the project moves toward more hardware-neutral boundaries.
+entry point that delegates to the `attendance_etl.ingestion.client` compatibility facade. The facade delegates
+to `attendance_etl.pi4.runtime`, preserving the current runnable device workflow while the project moves
+toward more explicit ingestion boundaries.
 
 ### `attendance_etl.ingestion`
 
-`src/attendance_etl/ingestion/client.py` contains the current ingestion workflow. It handles device polling,
-record filtering, transitional record decoding, Pub/Sub publication, snapshot persistence, and the finite
-state machine used by the Pi runtime.
+`src/attendance_etl/ingestion/client.py` is the compatibility facade for existing callers. It preserves
+`attendance_etl.ingestion.client.main()` and delegates runtime execution to `attendance_etl.pi4.runtime`.
 
-The ingestion module currently publishes transitional attendance dictionaries. Runtime enforcement of the
+### Ingestion Support Modules
+
+The Raspberry Pi ingestion client is split into focused package modules:
+
+- `attendance_etl.device.zkteco` owns ZKTeco connection lifecycle, device reads, and attendance clearing.
+- `attendance_etl.transform.zkteco_records` owns current ZKTeco user mapping, filtering, and transitional
+  record decoding.
+- `attendance_etl.messaging.pubsub` owns Pub/Sub constants, publication, subscriptions, targeted pulls, ACKs,
+  and message decoding.
+- `attendance_etl.storage.snapshot` and `attendance_etl.storage.review_period` own the existing JSON files.
+- `attendance_etl.pi4.state`, `attendance_etl.pi4.workflow`, and `attendance_etl.pi4.runtime` own Pi state,
+  finite-state-machine behavior, and runtime composition.
+
+The ingestion runtime currently publishes transitional attendance dictionaries. Runtime enforcement of the
 canonical attendance event contract is future work.
 
 ### Canonical Attendance Event Contract
@@ -152,7 +167,12 @@ sequenceDiagram
 ```text
 src/
 ├── attendance_etl/
-│   ├── ingestion/     # Canonical ingestion package modules
+│   ├── device/        # ZKTeco device interaction
+│   ├── transform/     # Source-specific record transformation
+│   ├── messaging/     # Pub/Sub integration helpers
+│   ├── storage/       # Local JSON persistence helpers
+│   ├── pi4/           # Pi runtime, state, and workflow
+│   ├── ingestion/     # Compatibility facade for existing ingestion callers
 │   └── functions/     # Reusable Cloud Function implementation modules
 ├── backend/           # Google Cloud Function deployment entry points
 └── pi4/               # Raspberry Pi compatibility runtime
@@ -171,8 +191,7 @@ files are deployment entry points; reusable implementation should live under `sr
 - Google Cloud Function dependencies remain organized per function under `src/backend/*/requirements.txt`.
 - Google Sheets is the current implemented persistence and review output.
 - PostgreSQL is documented as future storage only.
-- The reliability and finite state machine behavior is documented, but it is still implemented inside
-  `attendance_etl.ingestion.client` rather than isolated into its own module.
+- The reliability and finite state machine behavior is implemented under `attendance_etl.pi4`.
 - The source extraction path remains ZKTeco-specific.
 
 ## Related Documents
