@@ -20,15 +20,17 @@ run, validate, and evolve.
 ## System Overview
 
 The system is organized around the canonical Python package namespace `attendance_etl`, with ingestion
-logic under `attendance_etl.ingestion` and Google Cloud Function logic under `attendance_etl.functions`.
+runtime modules split across `attendance_etl.device`, `attendance_etl.transform`, `attendance_etl.messaging`,
+`attendance_etl.storage`, and `attendance_etl.pi4`. Google Cloud Function logic lives under
+`attendance_etl.functions`.
 
 At a high level, the ingestion client extracts records from a ZKTeco biometric device, filters and decodes
 the device data, and publishes work through Google Pub/Sub. Google Cloud Functions process review period,
 review sheet, and attendance record messages. Google Sheets remains the storage and review output used by HR.
 
 The legacy Raspberry Pi 4 execution path is preserved as a compatibility wrapper at `src/pi4/pi4_client.py`.
-That wrapper delegates to `attendance_etl.ingestion.client`, which keeps the current device-oriented workflow
-runnable while the package moves toward more hardware-neutral ingestion terminology and boundaries.
+That wrapper delegates through `attendance_etl.ingestion.client` to the Pi runtime modules, keeping the
+current device-oriented workflow runnable while the package moves toward more explicit ingestion boundaries.
 
 ## Architecture Diagram
 
@@ -63,7 +65,8 @@ For the detailed recovery model, see [Reliability Model](docs/reliability.md).
 The repository currently contains:
 
 - A Python `src/` layout with the canonical package namespace `attendance_etl`.
-- Ingestion code at `src/attendance_etl/ingestion/client.py`.
+- Ingestion runtime modules under `src/attendance_etl/{device,transform,messaging,storage,pi4}/`, with a
+  compatibility facade at `src/attendance_etl/ingestion/client.py`.
 - Google Cloud Function implementation modules under `src/attendance_etl/functions/`.
 - Google Cloud Function deployment wrappers under `src/backend/*/main.py`.
 - A Raspberry Pi compatibility entry point at `src/pi4/pi4_client.py`.

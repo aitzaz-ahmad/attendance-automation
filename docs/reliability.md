@@ -5,7 +5,7 @@
 The ingestion client is a long-running, stateful workflow for collecting attendance records from a ZKTeco
 biometric device and publishing work through Google Pub/Sub. The current runtime compatibility entry point is
 `src/pi4/pi4_client.py`, which delegates to the canonical implementation in
-`attendance_etl.ingestion.client`.
+`attendance_etl.ingestion.client`, then to the Pi runtime modules under `attendance_etl.pi4`.
 
 This reliability model is intentionally limited to the behavior currently visible in the implementation and
 repository diagrams. It should not be read as a production-grade fault-tolerance or exactly-once delivery
@@ -13,8 +13,9 @@ guarantee.
 
 ## Stateful Ingestion Workflow
 
-The ingestion client models the device workflow as a state machine. The main loop dispatches the handler for
-the current `PI4_STATE`, and each handler moves the client to the next state with `transition_state()`.
+The ingestion client models the device workflow as a state machine in `attendance_etl.pi4.workflow`. The main
+loop dispatches the handler for the current Pi state, and each handler moves the client to the next state with
+`transition_state()`.
 
 The implemented state handlers cover the following workflow:
 
@@ -39,7 +40,7 @@ hour when review metadata is unavailable. The finite state machine diagram is re
 
 Snapshot persistence lets the ingestion client resume after process interruption or power loss without
 starting from an empty in-memory state. The current snapshot file is `snapshot.json`, loaded during
-`bootstrap_pi4()` by `load_snapshot()`.
+`bootstrap_pi4()` through `attendance_etl.storage.snapshot`.
 
 The implementation persists these fields:
 
@@ -53,8 +54,9 @@ client deliberately does not checkpoint `AWAIT_REVIEW_PERIOD`, `AWAIT_REVIEW_SHE
 `AWAIT_LAST_STORED_TIMESTAMP`. This avoids restarting directly inside a Pub/Sub waiting state after shutdown,
 where the corresponding request or response may already have moved on.
 
-The review-period metadata is stored separately in `review_period.json`, and device connection settings are
-loaded from `biometric_device_config.json`.
+The review-period metadata is stored separately in `review_period.json` through
+`attendance_etl.storage.review_period`, and device connection settings are loaded from
+`biometric_device_config.json`.
 
 ## Timeout-Based Recovery
 
@@ -88,8 +90,8 @@ review-period lookup and sleep/retry behavior.
 
 ## Current Limitations
 
-- The reliability behavior is implemented inside `attendance_etl.ingestion.client`; the FSM is not yet isolated
-  as a separate reliability module.
+- The reliability behavior is implemented under `attendance_etl.pi4.workflow`; the compatibility facade remains
+  at `attendance_etl.ingestion.client`.
 - The final alarm notification path is present but not fully implemented.
 - Pub/Sub waits use bounded pull calls, but the await handlers continue retrying until a targeted message is
   received.

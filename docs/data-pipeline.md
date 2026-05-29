@@ -19,10 +19,10 @@ Sheets output.
 
 | Stage | Component | Input | Output | Status |
 | --- | --- | --- | --- | --- |
-| 1. Device polling / extraction | `attendance_etl.ingestion.client`, available through `src/pi4/pi4_client.py` compatibility wrapper | ZKTeco biometric device users and attendance records | Device user list and raw attendance records | Implemented for the current ZKTeco device path |
-| 2. Raw record normalisation | `src/attendance_etl/ingestion/client.py` | Raw ZKTeco users and attendance records filtered by review timestamp | Transitional Python dictionaries with `username`, `timestamp`, `entry`, and `device` fields | Implemented as device-specific decoding |
+| 1. Device polling / extraction | `attendance_etl.device.zkteco`, orchestrated by `attendance_etl.pi4.workflow` and available through `src/pi4/pi4_client.py` compatibility wrapper | ZKTeco biometric device users and attendance records | Device user list and raw attendance records | Implemented for the current ZKTeco device path |
+| 2. Raw record normalisation | `attendance_etl.transform.zkteco_records` | Raw ZKTeco users and attendance records filtered by review timestamp | Transitional Python dictionaries with `username`, `timestamp`, `entry`, and `device` fields | Implemented as device-specific decoding |
 | 3. Canonicalisation | Target contract in `docs/contracts/canonical-attendance-event.md` | Normalised source/device records | Canonical attendance event payload | Documented target; not fully adopted by runtime publishing yet |
-| 4. Event publication | `src/attendance_etl/ingestion/client.py` Google Pub/Sub publishing helpers | Review-period requests, review-sheet requests, and attendance record payloads | JSON messages on Google Pub/Sub topics | Implemented with transitional attendance record payloads |
+| 4. Event publication | `attendance_etl.messaging.pubsub`, orchestrated by `attendance_etl.pi4.workflow` | Review-period requests, review-sheet requests, and attendance record payloads | JSON messages on Google Pub/Sub topics | Implemented with transitional attendance record payloads |
 | 5. Backend / serverless processing | Google Cloud Functions deployment wrappers under `src/backend/*/main.py`, delegating to `attendance_etl.functions` | Google Pub/Sub event payloads | Review-period responses, review-sheet metadata, stored attendance updates, and last-stored timestamps | Implemented for current review-period, review-sheet, and attendance-record workflows |
 | 6. Persistence / review output | `src/attendance_etl/functions/store_attend_records.py` and Google Sheets APIs | Attendance record messages and review sheet metadata | Google Sheets raw data, daily attendance, weekly summary, and last-stored timestamp response | Implemented for Google Sheets attendance review output |
 
@@ -31,12 +31,12 @@ Sheets output.
 ### 1. Device Polling / Extraction
 
 The ingestion client polls the ZKTeco biometric device for users and attendance records. The legacy
-Raspberry Pi 4 entry point remains available as `src/pi4/pi4_client.py` and delegates to
-`attendance_etl.ingestion.client`.
+Raspberry Pi 4 entry point remains available as `src/pi4/pi4_client.py` and delegates through
+`attendance_etl.ingestion.client` to the Pi runtime modules.
 
 - Purpose: collect device users and attendance punches from the biometric source.
-- Current implementation: `pull_records_from_device()` connects to the ZKTeco device, disables it during
-  reads, fetches users and attendance records, then re-enables and disconnects.
+- Current implementation: `attendance_etl.device.zkteco.pull_records_from_device()` connects to the ZKTeco
+  device, disables it during reads, fetches users and attendance records, then re-enables and disconnects.
 - Input: configured device IP, communication port, and device identifier.
 - Output: raw user records and raw attendance records from the device library.
 - Limitation: the current extraction path is ZKTeco-specific and still tied to the device-oriented ingestion
@@ -49,7 +49,7 @@ Python dictionaries used by the current storage workflow.
 
 - Purpose: remove already-stored records and make ZKTeco records usable by downstream code.
 - Current implementation: `filter_records()`, `convert_to_map()`, `convert_to_dict()`, and
-  `decode_zk_format()` in `src/attendance_etl/ingestion/client.py`.
+  `decode_zk_format()` in `attendance_etl.transform.zkteco_records`.
 - Input: raw device users, raw attendance records, review start timestamp, optional review end timestamp, and
   configured device identifier.
 - Output: transitional records with timestamp, employee display name, device identifier, and entry type.
@@ -75,8 +75,9 @@ Canonicalisation is the intended transformation from source/device records into 
 The ingestion client publishes JSON payloads to Google Pub/Sub topics for backend processing.
 
 - Purpose: hand off review-period, review-sheet, and attendance-record work to serverless handlers.
-- Current implementation: `publish_message_to_topic()` serializes dictionaries as JSON and publishes to Google
-  Pub/Sub topics such as `get_review_period`, `create_review_sheet`, and `store_attend_records`.
+- Current implementation: `attendance_etl.messaging.pubsub.publish_message_to_topic()` serializes
+  dictionaries as JSON and publishes to Google Pub/Sub topics such as `get_review_period`,
+  `create_review_sheet`, and `store_attend_records`.
 - Input: workflow request data from the ingestion state machine.
 - Output: Google Pub/Sub messages consumed by Google Cloud Functions.
 - Limitation: message payloads are plain JSON dictionaries; schema validation and canonical event enforcement
