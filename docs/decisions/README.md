@@ -62,7 +62,9 @@ When introducing significant architectural changes, consult the relevant ADRs be
 
 | ADR | Title | Status |
 |----------|----------|----------|
-| ADR-0001 | Repository Modernisation Design Decisions | Accepted |
+| ADR-0001 | Repository Modernisation Design | Accepted |
+| ADR-0002 | Model Adoption Principles | Accepted |
+| ADR-0003 | Device & Transformation Layer Boundaries | Accepted |
 
 ## Naming Convention
 
