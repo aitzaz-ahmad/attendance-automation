@@ -1,4 +1,5 @@
 from attendance_etl.logging_utils import get_logger
+from attendance_etl.models import Employee
 
 logger = get_logger("RecordTransformer")
 
@@ -6,13 +7,14 @@ logger = get_logger("RecordTransformer")
 def convert_to_map(zk_users):
     """
     converts the list of users fetched from the biometric device
-    to a user id vs name map to allow a O(1) lookup for generating
+    to a user id vs Employee map to allow a O(1) lookup for generating
     a human readable equivalent of the attendance entries.
     """
     logger.debug("Generating user id to name mapping for %s users...", len(zk_users))
     user_mapping = {}
     for zk_user in zk_users:
-        user_mapping[zk_user.user_id] = zk_user.name
+        employee = Employee.from_zkteco_user(zk_user)
+        user_mapping[zk_user.user_id] = employee
 
     return user_mapping
 
@@ -22,7 +24,7 @@ def convert_to_dict(attendance_record, user_mapping):
     converts a ZKTeco attendance record to a dictionary that can
     be readily stored in the datastore.
     """
-    name = user_mapping[attendance_record.user_id]
+    name = user_mapping[attendance_record.user_id].name
     timestamp = attendance_record.timestamp
     entry_type = "Check In" if attendance_record.punch == 0 else "Check Out"
 

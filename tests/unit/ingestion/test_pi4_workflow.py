@@ -1,5 +1,7 @@
 import unittest
 
+import attendance_etl.pi4.workflow as workflow_module
+from attendance_etl.models import RuntimeState
 from attendance_etl.pi4.state import (
     AWAIT_REVIEW_PERIOD,
     FETCH_REVIEW_PERIOD,
@@ -13,18 +15,11 @@ class SnapshotSpy:
     def __init__(self):
         self.saves = []
 
-    def save(self, pi4_state, system_flags, review_sheet_id, last_stored_timestamp):
-        self.saves.append(
-            {
-                "pi4_state": pi4_state,
-                "sys_flags": system_flags,
-                "sheet_id": review_sheet_id,
-                "last_stored_timestamp": last_stored_timestamp,
-            }
-        )
+    def save(self, runtime_state):
+        self.saves.append(runtime_state)
 
 
-class ReviewPeriodStoreSpy:
+class ReviewPeriodSaveSpy:
     def __init__(self):
         self.saved = []
 
@@ -52,34 +47,41 @@ class DeviceStub:
 
 
 class Pi4WorkflowTests(unittest.TestCase):
-    def make_workflow(self, state=None, messenger=None, snapshot_store=None, review_period_store=None):
+    def setUp(self):
+        self.original_save_snapshot = workflow_module.save_snapshot
+        self.original_save_review_period = workflow_module.save_review_period
+
+    def tearDown(self):
+        workflow_module.save_snapshot = self.original_save_snapshot
+        workflow_module.save_review_period = self.original_save_review_period
+
+    def make_workflow(self, state=None, messenger=None):
         return Pi4Workflow(
             state or Pi4RuntimeState(),
             DeviceStub(),
             messenger or MessengerStub({}),
-            snapshot_store or SnapshotSpy(),
-            review_period_store or ReviewPeriodStoreSpy(),
         )
 
     def test_transition_skips_snapshot_for_waiting_states(self):
-        snapshot_store = SnapshotSpy()
+        snapshot_saver = SnapshotSpy()
+        workflow_module.save_snapshot = snapshot_saver.save
         state = Pi4RuntimeState(
             pi4_state=FETCH_REVIEW_PERIOD,
             system_flags=1,
             review_sheet_id="sheet-123",
             last_stored_timestamp="27-05-2026 08:59:12",
         )
-        workflow = self.make_workflow(state=state, snapshot_store=snapshot_store)
+        workflow = self.make_workflow(state=state)
 
         workflow.transition_state(AWAIT_REVIEW_PERIOD)
 
         self.assertEqual(state.pi4_state, AWAIT_REVIEW_PERIOD)
-        self.assertEqual(snapshot_store.saves, [])
+        self.assertEqual(snapshot_saver.saves, [])
 
         workflow.transition_state(FETCH_REVIEW_PERIOD)
 
         self.assertEqual(
-            snapshot_store.saves,
+            [snapshot.to_dict() for snapshot in snapshot_saver.saves],
             [
                 {
                     "pi4_state": FETCH_REVIEW_PERIOD,
@@ -91,22 +93,23 @@ class Pi4WorkflowTests(unittest.TestCase):
         )
 
     def test_empty_review_period_preserves_final_alarm_flag_as_next_state_value(self):
-        snapshot_store = SnapshotSpy()
-        review_period_store = ReviewPeriodStoreSpy()
+        snapshot_saver = SnapshotSpy()
+        review_period_saver = ReviewPeriodSaveSpy()
+        workflow_module.save_snapshot = snapshot_saver.save
+        workflow_module.save_review_period = review_period_saver.save
         state = Pi4RuntimeState(system_flags=0)
         workflow = self.make_workflow(
             state=state,
             messenger=MessengerStub({}),
-            snapshot_store=snapshot_store,
-            review_period_store=review_period_store,
         )
 
         workflow.handler_await_review_period()
 
         self.assertEqual(FINAL_ALARM_RAISED, FETCH_REVIEW_PERIOD)
         self.assertEqual(state.pi4_state, FETCH_REVIEW_PERIOD)
-        self.assertEqual(review_period_store.saved, [])
-        self.assertEqual(snapshot_store.saves[0]["pi4_state"], FETCH_REVIEW_PERIOD)
+        self.assertEqual(review_period_saver.saved, [])
+        self.assertIsInstance(snapshot_saver.saves[0], RuntimeState)
+        self.assertEqual(snapshot_saver.saves[0].pi4_state, FETCH_REVIEW_PERIOD)
 
 
 if __name__ == "__main__":

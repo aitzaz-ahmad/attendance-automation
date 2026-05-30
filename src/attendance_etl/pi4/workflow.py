@@ -4,6 +4,7 @@ from typing import Any, Callable, Dict, cast
 
 from attendance_etl import config
 from attendance_etl.logging_utils import get_logger
+from attendance_etl.models import ReviewPeriod, RuntimeState
 from attendance_etl.pi4.state import (
     AWAIT_LAST_STORED_TIMESTAMP,
     AWAIT_REVIEW_PERIOD,
@@ -17,18 +18,18 @@ from attendance_etl.pi4.state import (
     REVIEW_PERIOD_EXPIRED,
     WAITING_STATES,
 )
+from attendance_etl.storage.review_period import save_review_period
+from attendance_etl.storage.snapshot import save_snapshot
 from attendance_etl.transform.zkteco_records import convert_to_map, decode_zk_format, filter_records
 
 logger = get_logger("Pi4Workflow")
 
 
 class Pi4Workflow:
-    def __init__(self, state, device, messenger, snapshot_store, review_period_store):
+    def __init__(self, state, device, messenger):
         self.state = state
         self.device = device
         self.messenger = messenger
-        self.snapshot_store = snapshot_store
-        self.review_period_store = review_period_store
         self.handler_table = self.setup_handler_table()
 
     def setup_handler_table(self):
@@ -113,11 +114,17 @@ class Pi4Workflow:
         """
         Add annotation
         """
-        self.snapshot_store.save(
-            self.state.pi4_state,
-            self.state.system_flags,
-            self.state.review_sheet_id,
-            self.state.last_stored_timestamp,
+        last_stored_timestamp = self.state.last_stored_timestamp
+        if isinstance(last_stored_timestamp, str):
+            last_stored_timestamp = datetime.strptime(last_stored_timestamp, "%d-%m-%Y %H:%M:%S")
+
+        save_snapshot(
+            RuntimeState(
+                pi4_state=self.state.pi4_state,
+                sys_flags=self.state.system_flags,
+                sheet_id=self.state.review_sheet_id,
+                last_stored_timestamp=last_stored_timestamp,
+            )
         )
 
     def transition_state(self, new_state):
@@ -162,7 +169,7 @@ class Pi4Workflow:
             # update and save the new review period's info and transition
             # to the next state
             self.state.review_period_info = new_review_period
-            self.review_period_store.save(self.state.review_period_info)
+            save_review_period(ReviewPeriod.from_dict(new_review_period))
 
             next_state = REQUEST_REVIEW_SHEET
         else:  # denotes that the data for the next review period isn't available yet

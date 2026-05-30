@@ -72,7 +72,7 @@ Preferred:
 - MessagingClient
 - RecordTransformer
 - RuntimeState
-- ReviewPeriodStore
+- ReviewPeriod
 - Pi4Workflow
 - Pi4Runtime
 - IngestionClient
@@ -122,12 +122,9 @@ Within ETLP-23 and earlier milestones, RuntimeState refers to the responsibility
 
 ETLP-24 is expected to introduce a dedicated RuntimeState domain model.
 
-Possible future direction:
+RuntimeState is the domain model for persisted ingestion runtime state.
 
-- RuntimeState (domain model)
-- RuntimeStateStore (persistence mechanism)
-
-This preserves a clear separation between state representation and state persistence.
+Persistence remains the responsibility of the existing snapshot persistence code. No additional persistence abstraction is introduced by this decision.
 
 ---
 

@@ -84,6 +84,8 @@ The Raspberry Pi ingestion client is split into focused package modules:
 - `attendance_etl.device.zkteco` owns ZKTeco connection lifecycle, device reads, and attendance clearing.
 - `attendance_etl.transform.zkteco_records` owns current ZKTeco user mapping, filtering, and transitional
   record decoding.
+- `attendance_etl.models` owns lightweight dataclass representations for core domain contracts such as
+  attendance events, employees, review periods, and persisted runtime state.
 - `attendance_etl.config` owns shared runtime configuration constants such as Pub/Sub names, local runtime
   files, polling intervals, and device connection defaults.
 - `attendance_etl.messaging.pubsub` owns Pub/Sub publication, subscriptions, targeted pulls, ACKs, and message
