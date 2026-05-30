@@ -30,6 +30,23 @@ When introducing significant architectural changes:
 2. Review any associated design proposals for implementation intent.
 3. Update architecture documentation to reflect the final system state.
 
+## Engineering Principles
+
+The following principles guide architectural evolution, design decisions,
+and implementation work throughout the project.
+
+### Requirement-Driven Architecture
+
+Do not introduce new architectural abstractions unless:
+
+1. They already exist in the codebase.
+2. They are explicitly required by a ticket or specification.
+3. They are explicitly proposed and approved during design review.
+
+Architectural evolution should be driven by requirements rather than by architectural patterns or perceived symmetry.
+
+The project prefers extending existing abstractions over introducing speculative layers, managers, repositories, registries, adapters, factories, stores, or other constructs without a demonstrated need.
+
 ## Architecture
 
 - [Architecture](architecture.md)

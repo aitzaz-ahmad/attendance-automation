@@ -7,6 +7,10 @@ canonicalisation, and is intended for downstream publication, processing, and pe
 This contract describes the target canonical payload shape. Current device-specific decoding and publishing
 may still emit transitional fields until transformation work adopts this contract end to end.
 
+`attendance_etl.models.AttendanceEvent` is the Python dataclass representation of this contract for internal
+code. Its conversion helpers are available for model/dictionary conversion, but current runtime publishing may
+continue to use transitional dictionaries until canonical adoption is completed separately.
+
 For pipeline stage sequencing, see [Data Pipeline](../data-pipeline.md). For runtime adoption limits, see
 [Architecture](../architecture.md).
 
