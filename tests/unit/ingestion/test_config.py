@@ -7,18 +7,6 @@ from attendance_etl.messaging.pubsub import PubSubMessenger
 from attendance_etl.pi4 import runtime
 from attendance_etl.pi4.state import FETCH_REVIEW_PERIOD, Pi4RuntimeState
 from attendance_etl.pi4.workflow import Pi4Workflow
-from attendance_etl.storage.review_period import ReviewPeriodStore
-from attendance_etl.storage.snapshot import SnapshotStore
-
-
-class SnapshotSpy:
-    def save(self, pi4_state, system_flags, review_sheet_id, last_stored_timestamp):
-        pass
-
-
-class ReviewPeriodStoreSpy:
-    def save(self, review_period_info):
-        pass
 
 
 class DeviceStub:
@@ -102,8 +90,7 @@ class ConfigTests(unittest.TestCase):
             messenger.subscription_name(config.NEW_REVIEW_PERIOD_TOPIC),
             "sub_new_review_period_att-dev-dk-01",
         )
-        self.assertEqual(SnapshotStore().path, config.SNAPSHOT_FILE)
-        self.assertEqual(ReviewPeriodStore().path, config.REVIEW_PERIOD_JSON)
+        self.assertEqual(runtime.load_snapshot_into_state.__defaults__, (config.SNAPSHOT_FILE,))
         self.assertEqual(runtime.setup_device_info.__defaults__, (config.BIOMETRIC_DEVICE_CONFIG_FILE,))
 
     def test_workflow_publishes_to_configured_topics(self):
@@ -114,8 +101,6 @@ class ConfigTests(unittest.TestCase):
             state,
             DeviceStub(),
             messenger,
-            SnapshotSpy(),
-            ReviewPeriodStoreSpy(),
         )
 
         workflow.handler_fetch_review_period()

@@ -7,8 +7,8 @@ from attendance_etl.logging_utils import configure_logging, get_logger
 from attendance_etl.messaging.pubsub import PubSubMessenger
 from attendance_etl.pi4.state import Pi4RuntimeState
 from attendance_etl.pi4.workflow import Pi4Workflow
-from attendance_etl.storage.review_period import ReviewPeriodStore
-from attendance_etl.storage.snapshot import SnapshotStore
+from attendance_etl.storage.review_period import load_review_period
+from attendance_etl.storage.snapshot import load_snapshot
 
 logger = get_logger("Pi4Runtime")
 
@@ -25,15 +25,15 @@ def setup_device_info(path=config.BIOMETRIC_DEVICE_CONFIG_FILE):
     return device_info
 
 
-def load_snapshot_into_state(snapshot_store, state):
-    snapshot = snapshot_store.load()
-    state.pi4_state = snapshot["pi4_state"]
-    state.system_flags = snapshot["sys_flags"]
-    state.review_sheet_id = snapshot["sheet_id"]
-    state.last_stored_timestamp = snapshot["last_stored_timestamp"]
+def load_snapshot_into_state(state, path=config.SNAPSHOT_FILE):
+    snapshot = load_snapshot(path)
+    state.pi4_state = snapshot.pi4_state
+    state.system_flags = snapshot.sys_flags
+    state.review_sheet_id = snapshot.sheet_id
+    state.last_stored_timestamp = snapshot.last_stored_timestamp
 
     logger.info(
-        "loaded snapshot: pi4 state = %s, review sheet id = %s, last stored timestamp = %s",
+        "loaded runtime state: pi4 state = %s, review sheet id = %s, last stored timestamp = %s",
         state.pi4_state,
         state.review_sheet_id,
         state.last_stored_timestamp,
@@ -52,15 +52,13 @@ def bootstrap_pi4(verbosity=logging.INFO):
     device = ZKTecoDevice(state.device_info["ip"], state.device_info["port"])
     messenger = PubSubMessenger(state.device_info["identifier"])
 
-    snapshot_store = SnapshotStore()
-    review_period_store = ReviewPeriodStore()
-
-    state.review_period_info = review_period_store.load()
+    review_period = load_review_period()
+    state.review_period_info = review_period.to_dict()
     logger.info("review period info: %s", state.review_period_info)
 
-    load_snapshot_into_state(snapshot_store, state)
+    load_snapshot_into_state(state)
 
-    return Pi4Workflow(state, device, messenger, snapshot_store, review_period_store)
+    return Pi4Workflow(state, device, messenger)
 
 
 def run(workflow):
