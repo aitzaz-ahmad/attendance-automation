@@ -2,6 +2,7 @@ import unittest
 from datetime import timedelta
 
 from attendance_etl import config
+from attendance_etl.devices.biometric_device_config import ZKTecoOptions
 from attendance_etl.devices import zkteco_device
 from attendance_etl.messaging.pubsub import PubSubMessenger
 from attendance_etl.pi4 import runtime
@@ -78,9 +79,6 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.BIOMETRIC_DEVICE_CONFIG_FILE, "biometric_device_config.json")
         self.assertEqual(config.POLLING_DELAY, timedelta(minutes=15))
         self.assertEqual(config.DEEP_SLEEP_DURATION, timedelta(hours=1))
-        self.assertEqual(config.ZKTECO_TIMEOUT, 10)
-        self.assertIs(config.ZKTECO_FORCE_UDP, False)
-        self.assertIs(config.ZKTECO_OMMIT_PING, False)
 
     def test_runtime_components_use_config_defaults(self):
         messenger = PubSubMessenger("att-dev-dk-01")
@@ -91,7 +89,7 @@ class ConfigTests(unittest.TestCase):
             "sub_new_review_period_att-dev-dk-01",
         )
         self.assertEqual(runtime.load_snapshot_into_state.__defaults__, (config.SNAPSHOT_FILE,))
-        self.assertEqual(runtime.setup_device_info.__defaults__, (config.BIOMETRIC_DEVICE_CONFIG_FILE,))
+        self.assertEqual(runtime.load_biometric_device_config.__defaults__, (config.BIOMETRIC_DEVICE_CONFIG_FILE,))
 
     def test_workflow_publishes_to_configured_topics(self):
         state = Pi4RuntimeState(pi4_state=FETCH_REVIEW_PERIOD)
@@ -119,7 +117,12 @@ class ConfigTests(unittest.TestCase):
         FakeZK.instances = []
         zkteco_device.ZK = FakeZK
         try:
-            zkteco_device.ZKTecoDevice("192.0.2.10", 4370).pull_records()
+            zkteco_device.ZKTecoDevice(
+                ZKTecoOptions(
+                    ip_address="192.0.2.10",
+                    comm_port=4370,
+                )
+            ).pull_records()
         finally:
             zkteco_device.ZK = original_zk
 
@@ -127,9 +130,9 @@ class ConfigTests(unittest.TestCase):
         instance = FakeZK.instances[0]
         self.assertEqual(instance.device_ip, "192.0.2.10")
         self.assertEqual(instance.port, 4370)
-        self.assertEqual(instance.timeout, config.ZKTECO_TIMEOUT)
-        self.assertEqual(instance.force_udp, config.ZKTECO_FORCE_UDP)
-        self.assertEqual(instance.ommit_ping, config.ZKTECO_OMMIT_PING)
+        self.assertEqual(instance.timeout, zkteco_device.DEFAULT_TIMEOUT)
+        self.assertEqual(instance.force_udp, zkteco_device.DEFAULT_FORCE_UDP)
+        self.assertEqual(instance.ommit_ping, zkteco_device.DEFAULT_OMMIT_PING)
 
 
 if __name__ == "__main__":

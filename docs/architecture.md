@@ -81,13 +81,17 @@ toward more explicit ingestion boundaries.
 
 The Raspberry Pi ingestion client is split into focused package modules:
 
-- `attendance_etl.device.zkteco` owns ZKTeco connection lifecycle, device reads, and attendance clearing.
+- `attendance_etl.devices.biometric_device` owns the runtime-facing biometric device abstraction.
+- `attendance_etl.devices.biometric_device_factory` owns concrete biometric device construction.
+- `attendance_etl.devices.zkteco_device` owns ZKTeco SDK integration, ZKTeco connection lifecycle, device
+  reads, attendance clearing, and ZKTeco implementation-level defaults.
 - `attendance_etl.transform.zkteco_records` owns current ZKTeco user mapping, filtering, and transitional
   record decoding.
 - `attendance_etl.models` owns lightweight dataclass representations for core domain contracts such as
   attendance events, employees, review periods, and persisted runtime state.
 - `attendance_etl.config` owns shared runtime configuration constants such as Pub/Sub names, local runtime
-  files, polling intervals, and device connection defaults.
+  files, and polling intervals. Vendor-specific biometric device options do not belong in global
+  ingestion-client configuration.
 - `attendance_etl.messaging.pubsub` owns Pub/Sub publication, subscriptions, targeted pulls, ACKs, and message
   decoding.
 - `attendance_etl.storage.snapshot` and `attendance_etl.storage.review_period` own the existing JSON files.
@@ -97,6 +101,85 @@ The Raspberry Pi ingestion client is split into focused package modules:
 
 The ingestion runtime currently publishes transitional attendance dictionaries. Runtime enforcement of the
 canonical attendance event contract is future work.
+
+### Biometric Device Configuration Object Model
+
+The intended biometric device configuration model keeps the root runtime
+configuration vendor-neutral:
+
+```text
+VendorOptions
+    ↑
+    |
+ZKTecoOptions
+
+BiometricDeviceConfig
+    site_id: str
+    vendor: str
+    device_options: VendorOptions
+
+ZKTecoOptions
+    ip_address: str
+    comm_port: int
+    timeout: Optional[int]
+    force_udp: Optional[bool]
+    ommit_ping: Optional[bool]
+```
+
+`BiometricDeviceConfig` is the runtime-facing configuration representation. It
+contains `site_id`, `vendor`, and `device_options`, and it must not expose
+ZKTeco-specific fields directly.
+
+`site_id` identifies the office, site, or location from which attendance records
+are extracted. It is deployment/domain metadata, independent of the biometric
+device vendor and communication mechanism. It may later be propagated into
+canonical attendance records as source-site metadata.
+
+`vendor` selects the biometric device implementation.
+
+`device_options` contains vendor-specific connection metadata.
+
+`VendorOptions` is the base abstraction for vendor-specific configuration.
+
+`ZKTecoOptions` is the concrete vendor-options object for the current ZKTeco
+device path. ZKTeco-specific options include:
+
+- `ip_address`
+- `comm_port`
+- `timeout`
+- `force_udp`
+- `ommit_ping`
+
+These options belong to `ZKTecoOptions` and `ZKTecoDevice`, not to global
+`attendance_etl.config` and not to root deployment metadata such as `site_id`.
+
+If optional ZKTeco options are absent from the biometric device configuration
+file, `ZKTecoDevice` owns initialising them with implementation-level defaults.
+
+### Configuration And Device Construction Boundaries
+
+Runtime orchestration is responsible for composing and running the workflow.
+
+It may depend on `BiometricDeviceConfig` and `BiometricDevice`, but it should not
+depend on `ZKTecoDevice` directly.
+
+The ownership boundaries are:
+
+- Runtime: orchestration only.
+- `BiometricDeviceConfigBuilder` or equivalent loader: JSON loading, required
+  root field validation, vendor selection validation, vendor-options validation,
+  and construction of the correct `VendorOptions` object.
+- `BiometricDeviceConfig`: biometric device configuration representation with
+  root deployment/domain metadata, vendor selection metadata, and vendor options.
+- `VendorOptions`: vendor-specific configuration abstraction.
+- `ZKTecoOptions`: ZKTeco-specific connection options.
+- `BiometricDeviceFactory`: concrete `BiometricDevice` construction from a
+  validated `BiometricDeviceConfig`.
+- `ZKTecoDevice`: pyzk integration, device communication, extraction, clearing,
+  and ZKTeco-specific implementation defaults.
+
+Configuration loading/building and concrete device construction are separate
+responsibilities.
 
 ### Canonical Attendance Event Contract
 
@@ -172,7 +255,7 @@ sequenceDiagram
 ```text
 src/
 ├── attendance_etl/
-│   ├── device/        # ZKTeco device interaction
+│   ├── devices/       # Biometric device abstractions, factory, and concrete devices
 │   ├── transform/     # Source-specific record transformation
 │   ├── messaging/     # Pub/Sub integration helpers
 │   ├── storage/       # Local JSON persistence helpers
@@ -198,6 +281,8 @@ files are deployment entry points; reusable implementation should live under `sr
 - PostgreSQL is documented as future storage only.
 - The reliability and finite state machine behavior is implemented under `attendance_etl.pi4`.
 - The source extraction path remains ZKTeco-specific.
+- The root biometric device configuration model is vendor-neutral even though the only current concrete
+  device implementation is ZKTeco.
 
 ## Related Documents
 

@@ -63,15 +63,15 @@ class Pi4Workflow:
         logger.debug("get_attendance_records invoked")
 
         device_info = self.device_info()
-        device_tag = device_info["identifier"]
-        logger.info("fetching data from device %s", device_tag)
+        site_id = device_info["site_id"]
+        logger.info("fetching data from site %s", site_id)
         users, records = self.device.pull_records()
         logger.info("filtering attendance records since %s", from_date.strftime("%d-%m-%Y %H:%M:%S"))
         unsaved_records = filter_records(records, from_date, to_date)
         logger.info("%s unsaved attendance records found", len(unsaved_records))
         user_mapping = convert_to_map(users)
         logger.debug("decoding unsaved records from zkteco format...")
-        decoded_records = decode_zk_format(unsaved_records, user_mapping, device_tag)
+        decoded_records = decode_zk_format(unsaved_records, user_mapping, site_id)
 
         logger.info("%s attendance records decoded", len(decoded_records))
 
@@ -254,7 +254,7 @@ class Pi4Workflow:
             # the last publish call to the cloud
             request_params = {}
             request_params["sheet_id"] = self.state.review_sheet_id
-            request_params["device_id"] = self.device_info()["identifier"]
+            request_params["device_id"] = self.device_info()["site_id"]
             request_params["start_date"] = review_period_info["start_date"]
             request_params["records"] = new_records
             self.messenger.publish_message_to_topic(config.STORE_ATTEND_RECORDS_TOPIC, request_params)
@@ -297,8 +297,8 @@ class Pi4Workflow:
         if len(new_records) == 0:
             # there are no unsaved attendance records on the biometric device,
             # therefore, it is safe to delete all attendance data from the device
-            device_tag = self.device_info()["identifier"]
-            logger.info("deleting attendance records from device %s", device_tag)
+            site_id = self.device_info()["site_id"]
+            logger.info("deleting attendance records from site %s", site_id)
             self.device.clear_records()
 
         self.state.review_sheet_id = self.state.last_stored_timestamp = None

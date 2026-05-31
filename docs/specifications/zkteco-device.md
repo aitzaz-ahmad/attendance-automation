@@ -27,6 +27,7 @@ This specification covers:
 - the ZKTeco concrete biometric device implementation
 - migration from the current `attendance_etl.device` package to the preferred `attendance_etl.devices` package
 - ZKTeco SDK ownership
+- ZKTeco-specific connection option ownership
 - extraction responsibilities
 - record-clearing responsibilities
 - dependency rules
@@ -98,6 +99,7 @@ ZKTecoDevice owns:
 - ZKTeco SDK imports
 - device connection lifecycle
 - device communication
+- ZKTeco-specific connection defaults
 - extraction of raw users
 - extraction of raw attendance records
 - clearing attendance records
@@ -125,8 +127,42 @@ ZKTecoDevice does not own:
 - runtime orchestration
 - persistence
 - backend communication
+- global ingestion-client configuration
 
 These concerns belong to other architectural layers.
+
+## ZKTeco Configuration Ownership
+
+ZKTeco-specific connection options belong to `ZKTecoOptions` or to
+`ZKTecoDevice` implementation-level defaults.
+
+They must not live as root fields on `BiometricDeviceConfig`.
+
+They must not live in global ingestion-client configuration.
+
+`site_id` is not a ZKTeco option. It belongs on `BiometricDeviceConfig` as
+deployment/domain metadata identifying the office, site, or location from which
+attendance records are extracted. It is independent of the ZKTeco communication
+mechanism.
+
+The ZKTeco-specific options are:
+
+- `ip_address: str`
+- `comm_port: int`
+- `timeout: Optional[int]`
+- `force_udp: Optional[bool]`
+- `ommit_ping: Optional[bool]`
+
+The `ommit_ping` spelling follows the pyzk API.
+
+`ZKTecoOptions` represents values loaded from the biometric device
+configuration file.
+
+If optional ZKTeco options are absent from that file, `ZKTecoDevice` must
+initialise them using its own implementation-level defaults.
+
+The runtime and `BiometricDeviceConfig` should remain vendor-neutral and should
+not expose these ZKTeco connection fields directly.
 
 ## Dependency Rules
 
@@ -134,6 +170,7 @@ ZKTecoDevice may depend on:
 
 - ZKTeco SDK
 - BiometricDevice
+- ZKTecoOptions
 
 ZKTecoDevice must not depend on:
 

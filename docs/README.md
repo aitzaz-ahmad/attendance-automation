@@ -57,12 +57,22 @@ The project prefers extending existing abstractions over introducing speculative
 ## Decisions
 
 - [Decision records index](decisions/README.md)
-- [ADR-0001 — Repository Modernisation Design Decisions](decisions/0001-repository-modernisation-design-decisions.md)
+- [ADR-0001 — Repository Modernisation Design](decisions/0001-repo-modernisation-design.md)
+- [ADR-0002 — Model Adoption Principles](decisions/0002-model-adoption-principles.md)
+- [ADR-0003 — Device And Transformation Layer Boundaries](decisions/0003-device-and-transformation-layer-boundaries.md)
 
 ## Proposals
 
 - [Proposals index](proposals/README.md)
 - [ETLP-21 — Ingestion Modularisation](proposals/ingestion-modularisation.md)
+- [Device Layer Abstraction](proposals/device-layer-abstraction.md)
+- [Transformation Layer](proposals/transformation-layer.md)
+
+## Specifications
+
+- [BiometricDevice specification](specifications/biometric-device.md)
+- [BiometricDeviceFactory specification](specifications/device-factory.md)
+- [ZKTecoDevice specification](specifications/zkteco-device.md)
 
 ## Contracts
 

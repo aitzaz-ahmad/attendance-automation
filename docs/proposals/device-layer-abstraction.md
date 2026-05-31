@@ -32,6 +32,7 @@ Milestone 3 shall:
 - encapsulate all device SDK interaction
 - remove concrete biometric device references from runtime code
 - introduce a composition boundary through BiometricDeviceFactory
+- keep biometric device configuration vendor-neutral at the root level
 - move extraction responsibilities behind the device boundary
 
 The milestone should enable future support for multiple biometric device vendors without requiring orchestration changes.
@@ -46,9 +47,16 @@ Milestone 3 does not introduce:
 - AttendanceEvent construction rules
 - Employee construction rules
 - transformation strategies
+- plugin discovery
+- importlib-based loading
+- dependency injection containers
+- additional biometric vendors
+- extraction pipeline migration
+- GitHub project mutations
 - multi-device runtime support
 
-Those concerns belong to Milestone 4.
+Those concerns are outside this milestone. Transformation concerns belong to
+Milestone 4.
 
 ## Relationship To ADR-0003
 
@@ -75,7 +83,120 @@ Device-specific knowledge currently exists outside a dedicated device boundary.
 
 ## Target Architecture
 
-The target architecture after Milestone 3 is:
+The aligned target architecture is:
+
+    PiRuntime
+        ↓
+    BiometricDeviceConfigBuilder
+        ↓
+    BiometricDeviceConfig
+        ↓
+    BiometricDeviceFactory
+        ↓
+    BiometricDevice
+
+    ZKTecoOptions
+        ↓
+    ZKTecoDevice
+        ↓
+    ZKTeco SDK
+
+Runtime orchestration should depend on BiometricDeviceConfig and BiometricDevice,
+not on concrete biometric device implementations.
+
+Concrete device construction should occur exclusively through BiometricDeviceFactory.
+
+Configuration loading and concrete device construction are separate responsibilities.
+
+## Configuration Object Model
+
+The intended biometric device configuration object model is:
+
+    VendorOptions
+        ↑
+        |
+    ZKTecoOptions
+
+    BiometricDeviceConfig
+        - site_id: str
+        - vendor: str
+        - device_options: VendorOptions
+
+    ZKTecoOptions
+        - ip_address: str
+        - comm_port: int
+        - timeout: Optional[int]
+        - force_udp: Optional[bool]
+        - ommit_ping: Optional[bool]
+
+`BiometricDeviceConfig` is the vendor-neutral runtime representation.
+
+It must not expose ZKTeco-specific fields directly at the root level.
+
+`site_id` identifies the office, site, or location from which attendance records
+are extracted. It is deployment/domain metadata, independent of the biometric
+device vendor and communication mechanism, and may later be propagated into
+canonical attendance records as source-site metadata.
+
+`vendor` selects the biometric device implementation.
+
+`device_options` contains vendor-specific connection metadata.
+
+`VendorOptions` is the base abstraction for vendor-specific configuration.
+
+`ZKTecoOptions` contains the ZKTeco-specific connection options required by the
+concrete ZKTeco implementation.
+
+`BiometricDeviceConfigBuilder` or an equivalent loader owns reading the JSON
+configuration file, validating required fields, validating vendor-specific
+options, and constructing the correct `VendorOptions` object.
+
+`BiometricDeviceFactory` receives a validated `BiometricDeviceConfig` and
+constructs the concrete `BiometricDevice`.
+
+The factory does not own JSON file I/O or configuration validation.
+
+## Startup Configuration Invariant
+
+The ingestion client is configuration-driven.
+
+A valid biometric device configuration file is required before runtime startup
+can proceed.
+
+Startup must fail fast if:
+
+- the configuration file is missing
+- the configuration file is unreadable
+- the configuration file contains invalid JSON
+- required fields are missing
+- the vendor is unsupported
+- vendor-specific options are invalid
+
+The runtime must not instantiate or communicate with a biometric device when
+configuration loading or validation fails.
+
+## ZKTeco Configuration Ownership
+
+The following options are ZKTeco-specific and belong in `ZKTecoOptions` or
+inside `ZKTecoDevice` implementation defaults:
+
+- `ip_address`
+- `comm_port`
+- `timeout`
+- `force_udp`
+- `ommit_ping`
+
+These options must not live in global ingestion-client configuration.
+
+They also must not contain root deployment/domain metadata such as `site_id`.
+
+If optional ZKTeco options are not present in the biometric device configuration
+file, `ZKTecoDevice` must initialise them using its own implementation-level
+defaults.
+
+## Previous Target Architecture
+
+Earlier planning described the target architecture as:
 
     PiRuntime
         ↓
@@ -89,9 +210,8 @@ The target architecture after Milestone 3 is:
         ↓
     ZKTeco SDK
 
-Runtime orchestration should depend only on BiometricDevice.
-
-Concrete device construction should occur exclusively through BiometricDeviceFactory.
+This remains valid for device access, but configuration loading now has an
+explicit boundary before device construction.
 
 ## Dependency Graph
 
@@ -184,10 +304,12 @@ BiometricDeviceFactory acts as the composition boundary.
 - create BiometricDevice implementations
 - wire required dependencies
 - hide concrete biometric device construction from runtime code
+- consume BiometricDeviceConfig
 
 ### Non-Responsibilities
 
 - runtime orchestration
+- JSON configuration loading
 - SDK communication
 - transformation
 - validation
@@ -209,6 +331,7 @@ The milestone shall not introduce:
 - registries
 - dependency injection containers
 - abstract factories
+- importlib-based loading
 
 ## ZKTecoDevice Responsibilities
 
@@ -219,6 +342,7 @@ ZKTecoDevice owns:
 - user extraction
 - attendance extraction
 - attendance record clearing
+- ZKTeco implementation-level defaults for optional ZKTeco options
 
 ZKTecoDevice must not own:
 
@@ -226,6 +350,7 @@ ZKTecoDevice must not own:
 - validation
 - normalisation
 - backend payload construction
+- global ingestion-client configuration
 
 ## ETLP-25: Create Device Interface
 
@@ -324,6 +449,9 @@ Milestone 3 is considered complete when:
 - Runtime orchestration contains no direct device SDK dependencies
 - BiometricDeviceFactory acts as the sole composition boundary
 - Extraction logic resides within the device layer
+- BiometricDeviceConfig contains root `site_id`, `vendor`, and `device_options`
+- BiometricDeviceConfig is vendor-neutral at the root level
+- ZKTeco-specific options are isolated in ZKTecoOptions or ZKTecoDevice defaults
 - Existing runtime behaviour remains unchanged
 
 ## Risks
@@ -336,6 +464,7 @@ Avoid introducing:
 - registries
 - dependency injection containers
 - abstract factories
+- importlib-based loading
 
 The factory should remain minimal.
 

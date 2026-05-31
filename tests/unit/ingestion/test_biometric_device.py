@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Sequence, Tuple
 
 from attendance_etl.devices.biometric_device import BiometricDevice
+from attendance_etl.devices.biometric_device_config import ZKTecoOptions
 from attendance_etl.devices.zkteco_device import ZKTecoDevice
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -84,7 +85,12 @@ class BiometricDeviceTests(unittest.TestCase):
         self.assertTrue(device.cleared)
 
     def test_zkteco_device_satisfies_biometric_device(self):
-        device = ZKTecoDevice("192.0.2.10", 4370)
+        device = ZKTecoDevice(
+            ZKTecoOptions(
+                ip_address="192.0.2.10",
+                comm_port=4370,
+            )
+        )
 
         typed_device: BiometricDevice = device
 
