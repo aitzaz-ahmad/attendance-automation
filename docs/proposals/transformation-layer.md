@@ -16,7 +16,7 @@ This milestone implements the transformation boundary defined by ADR-0003.
 
 Milestone 3 introduces a stable device abstraction layer.
 
-After that work is complete, device clients will be responsible only for:
+After that work is complete, biometric devices will be responsible only for:
 
 - device communication
 - extraction
@@ -61,7 +61,7 @@ This proposal implements the transformation boundary defined in ADR-0003.
 In particular:
 
 - device access and transformation remain separate concerns
-- transformation strategies are injected into device clients
+- transformation strategies are injected into biometric devices
 - runtime remains device-agnostic
 - device-specific optimisation structures are not architectural contracts
 
@@ -83,13 +83,13 @@ The transformation rules are not isolated behind a dedicated abstraction.
 
 The target architecture after Milestone 4 is:
 
-    DeviceClient
+    BiometricDevice
         ↓
     TransformationStrategy
         ↓
     Employee
 
-    DeviceClient
+    BiometricDevice
         ↓
     TransformationStrategy
         ↓
@@ -97,13 +97,13 @@ The target architecture after Milestone 4 is:
 
 Concrete example:
 
-    ZKTecoDeviceClient
+    ZKTecoDevice
         ↓
     ZKTecoTransformationStrategy
         ↓
     Employee
 
-    ZKTecoDeviceClient
+    ZKTecoDevice
         ↓
     ZKTecoTransformationStrategy
         ↓
@@ -115,7 +115,7 @@ Runtime orchestration should consume only project-owned models.
 
 Allowed dependencies:
 
-    DeviceClient
+    BiometricDevice
         ↓
     TransformationStrategy
 
@@ -191,7 +191,7 @@ TransformationStrategy represents a behavioural abstraction.
 
 The strategy owns interpretation.
 
-The device client owns extraction.
+The concrete biometric device owns extraction.
 
 ## Canonical Employee Model
 

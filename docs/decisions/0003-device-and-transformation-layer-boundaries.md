@@ -32,7 +32,7 @@ while preserving the existing runtime behaviour.
 
 ### Boundary Abstractions
 
-- DeviceClient
+- BiometricDevice
 - TransformationStrategy
 
 ### Domain Models
@@ -57,7 +57,7 @@ Dependencies shall point downward only.
         ↓
     IngestionWorkflow
         ↓
-    DeviceClient
+    BiometricDevice
         ↓
     TransformationStrategy
         ↓
@@ -65,7 +65,7 @@ Dependencies shall point downward only.
 
     --------------------------------
 
-    ZKTecoDeviceClient
+    ZKTecoDevice
         ↓
     ZKTeco SDK
 
@@ -86,7 +86,7 @@ The runtime should not directly depend on:
 
 The runtime should operate on:
 
-- DeviceClient
+- BiometricDevice
 - Employee
 - AttendanceEvent
 - RuntimeState
@@ -114,19 +114,19 @@ High-level policy should not depend on low-level details.
 
 Low-level details should be hidden behind stable project-owned contracts.
 
-## Decision 3: DeviceFactory Is The Composition Boundary
+## Decision 3: BiometricDeviceFactory Is The Composition Boundary
 
 ### Context
 
 The project intentionally adopts a polymorphic device architecture.
 
-Runtime orchestration should never reference concrete device implementations directly.
+Runtime orchestration should never reference concrete biometric device implementations directly.
 
 ### Decision
 
-Concrete device construction shall occur exclusively through DeviceFactory.
+Concrete device construction shall occur exclusively through BiometricDeviceFactory.
 
-The runtime shall not directly construct concrete device clients.
+The runtime shall not directly construct concrete biometric devices.
 
 ### Rationale
 
@@ -136,9 +136,9 @@ The purpose is to isolate concrete object creation from high-level orchestration
 
 Adding a new device should require:
 
-- creating a new DeviceClient implementation
+- creating a new BiometricDevice implementation
 - creating a matching TransformationStrategy implementation
-- extending DeviceFactory
+- extending BiometricDeviceFactory
 
 without modifying runtime orchestration code.
 
@@ -160,22 +160,22 @@ Device access and data transformation shall remain separate responsibilities.
 - normalisation
 - model construction
 
-## Decision 5: Device Clients Depend On Transformation Strategy Abstractions
+## Decision 5: Biometric Devices Depend On Transformation Strategy Abstractions
 
 ### Decision
 
-Device clients shall depend on TransformationStrategy abstractions rather than concrete transformation implementations.
+Biometric devices shall depend on TransformationStrategy abstractions rather than concrete transformation implementations.
 
 Transformation strategies shall be injected through constructors.
 
 Example:
 
-    DeviceClient
+    BiometricDevice
         -> TransformationStrategy
 
 not:
 
-    DeviceClient
+    BiometricDevice
         -> ConcreteTransformationStrategy
 
 ### Rationale
@@ -226,9 +226,9 @@ Adding a new device should not require changes to:
 
 Only:
 
-- DeviceClient implementations
+- BiometricDevice implementations
 - TransformationStrategy implementations
-- DeviceFactory
+- BiometricDeviceFactory
 
 should require modification.
 
@@ -246,17 +246,17 @@ should require modification.
 
 - Additional abstraction layers.
 - Additional constructor wiring.
-- DeviceFactory maintenance when new devices are introduced.
+- BiometricDeviceFactory maintenance when new devices are introduced.
 
 ## Rejected Alternatives
 
 | Alternative | Reason Rejected |
 |------------|-----------------|
-| Runtime depends directly on concrete device implementations | Violates dependency inversion and requires orchestration changes when new devices are introduced. |
+| Runtime depends directly on concrete biometric device implementations | Violates dependency inversion and requires orchestration changes when new devices are introduced. |
 | Transformation logic inside runtime | Mixes orchestration concerns with data interpretation and canonicalisation. |
 | Transformation logic inside workflow | Couples workflow coordination to device-specific data semantics. |
 | Shared user_mapping contract | Treats an implementation optimisation as a public architectural boundary. |
-| DeviceClient directly constructs its transformation strategy | Introduces tight coupling between device access and transformation implementations and makes testing more difficult. |
+| BiometricDevice directly constructs its transformation strategy | Introduces tight coupling between device access and transformation implementations and makes testing more difficult. |
 | Runtime imports vendor SDKs directly | Leaks low-level implementation details into high-level policy code and increases coupling to vendor-specific dependencies. |
 
 ## References

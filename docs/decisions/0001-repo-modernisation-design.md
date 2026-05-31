@@ -68,7 +68,7 @@ Names should remain stable even when underlying technologies change.
 
 Preferred:
 
-- DeviceClient
+- BiometricDevice
 - MessagingClient
 - RecordTransformer
 - RuntimeState

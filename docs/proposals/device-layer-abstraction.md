@@ -22,16 +22,16 @@ As a result:
 - orchestration code is aware of device-specific implementation details
 - introducing a new device vendor would require changes outside the device layer
 
-Milestone 3 introduces a stable abstraction boundary that allows runtime orchestration to remain independent of concrete device implementations.
+Milestone 3 introduces a stable abstraction boundary that allows runtime orchestration to remain independent of concrete biometric device implementations.
 
 ## Goals
 
 Milestone 3 shall:
 
-- establish a DeviceClient abstraction
+- establish a BiometricDevice abstraction
 - encapsulate all device SDK interaction
-- remove concrete device references from runtime code
-- introduce a composition boundary through DeviceFactory
+- remove concrete biometric device references from runtime code
+- introduce a composition boundary through BiometricDeviceFactory
 - move extraction responsibilities behind the device boundary
 
 The milestone should enable future support for multiple biometric device vendors without requiring orchestration changes.
@@ -56,9 +56,9 @@ This proposal implements the architectural decisions documented in ADR-0003.
 
 In particular:
 
-- runtime depends on abstractions rather than concrete devices
+- runtime depends on abstractions rather than concrete biometric devices
 - device SDKs remain hidden behind concrete implementations
-- DeviceFactory acts as the composition boundary
+- BiometricDeviceFactory acts as the composition boundary
 - device access and transformation remain separate concerns
 
 ## Current Architecture
@@ -81,17 +81,17 @@ The target architecture after Milestone 3 is:
         ↓
     IngestionWorkflow
         ↓
-    DeviceClient
+    BiometricDevice
 
-    DeviceFactory
+    BiometricDeviceFactory
         ↓
-    ZKTecoDeviceClient
+    ZKTecoDevice
         ↓
     ZKTeco SDK
 
-Runtime orchestration should depend only on DeviceClient.
+Runtime orchestration should depend only on BiometricDevice.
 
-Concrete device construction should occur exclusively through DeviceFactory.
+Concrete device construction should occur exclusively through BiometricDeviceFactory.
 
 ## Dependency Graph
 
@@ -101,13 +101,13 @@ Allowed dependencies:
         ↓
     IngestionWorkflow
         ↓
-    DeviceClient
+    BiometricDevice
 
-    DeviceFactory
+    BiometricDeviceFactory
         ↓
-    ZKTecoDeviceClient
+    ZKTecoDevice
 
-    ZKTecoDeviceClient
+    ZKTecoDevice
         ↓
     ZKTeco SDK
 
@@ -141,11 +141,11 @@ The device layer returns raw device data.
 
 Interpretation of device data belongs to Milestone 4.
 
-## DeviceClient Contract
+## BiometricDevice Contract
 
 ### Responsibilities
 
-DeviceClient is responsible for:
+BiometricDevice is responsible for:
 
 - connecting to devices
 - disconnecting from devices
@@ -175,15 +175,15 @@ It should not own transformation responsibilities.
 
 Exact method signatures are intentionally left flexible and should be derived from the current SDK integration during ETLP-25.
 
-## DeviceFactory Contract
+## BiometricDeviceFactory Contract
 
-DeviceFactory acts as the composition boundary.
+BiometricDeviceFactory acts as the composition boundary.
 
 ### Responsibilities
 
-- create DeviceClient implementations
+- create BiometricDevice implementations
 - wire required dependencies
-- hide concrete device construction from runtime code
+- hide concrete biometric device construction from runtime code
 
 ### Non-Responsibilities
 
@@ -195,7 +195,7 @@ DeviceFactory acts as the composition boundary.
 
 ### Design Notes
 
-DeviceFactory exists to support a polymorphic architecture.
+BiometricDeviceFactory exists to support a polymorphic architecture.
 
 Its purpose is not convenience.
 
@@ -210,9 +210,9 @@ The milestone shall not introduce:
 - dependency injection containers
 - abstract factories
 
-## ZKTecoDeviceClient Responsibilities
+## ZKTecoDevice Responsibilities
 
-ZKTecoDeviceClient owns:
+ZKTecoDevice owns:
 
 - ZKTeco SDK imports
 - device connection lifecycle
@@ -220,7 +220,7 @@ ZKTecoDeviceClient owns:
 - attendance extraction
 - attendance record clearing
 
-ZKTecoDeviceClient must not own:
+ZKTecoDevice must not own:
 
 - canonicalisation
 - validation
@@ -231,35 +231,35 @@ ZKTecoDeviceClient must not own:
 
 ### Scope
 
-Introduce the DeviceClient abstraction.
+Introduce the BiometricDevice abstraction.
 
 ### Expected Deliverables
 
-- DeviceClient interface or abstract base class
+- BiometricDevice interface or abstract base class
 - Documentation of responsibilities and boundaries
-- Runtime dependencies updated to target DeviceClient
+- Runtime dependencies updated to target BiometricDevice
 
 ### Acceptance Criteria
 
-- Runtime depends on DeviceClient rather than concrete device implementations
+- Runtime depends on BiometricDevice rather than concrete biometric device implementations
 - Device responsibilities are clearly defined
 - No runtime behaviour changes
 
-## ETLP-26: Implement ZKTeco Adapter
+## ETLP-26: Implement ZKTeco Concrete Biometric Device
 
 ### Scope
 
-Create ZKTecoDeviceClient as the concrete implementation of DeviceClient.
+Create ZKTecoDevice as the concrete implementation of BiometricDevice.
 
 ### Expected Deliverables
 
-- ZKTecoDeviceClient
+- ZKTecoDevice
 - Encapsulation of ZKTeco SDK imports
 - Encapsulation of ZKTeco extraction logic
 
 ### Acceptance Criteria
 
-- ZKTeco SDK interaction occurs only within ZKTecoDeviceClient
+- ZKTeco SDK interaction occurs only within ZKTecoDevice
 - Existing extraction behaviour is preserved
 - Runtime behaviour remains unchanged
 
@@ -267,17 +267,17 @@ Create ZKTecoDeviceClient as the concrete implementation of DeviceClient.
 
 ### Scope
 
-Introduce DeviceFactory as the composition boundary.
+Introduce BiometricDeviceFactory as the composition boundary.
 
 ### Expected Deliverables
 
-- DeviceFactory
-- Centralised construction of DeviceClient implementations
+- BiometricDeviceFactory
+- Centralised construction of BiometricDevice implementations
 
 ### Acceptance Criteria
 
-- Runtime does not instantiate concrete device clients directly
-- DeviceFactory constructs the correct concrete implementation
+- Runtime does not instantiate concrete biometric devices directly
+- BiometricDeviceFactory constructs the correct concrete implementation
 - No runtime behaviour changes
 
 ## ETLP-28: Move Extraction Logic
@@ -288,7 +288,7 @@ Move extraction responsibilities behind the device boundary.
 
 ### Expected Deliverables
 
-- Device extraction logic moved into ZKTecoDeviceClient
+- Device extraction logic moved into ZKTecoDevice
 - Runtime orchestration simplified
 
 ### Acceptance Criteria
@@ -305,11 +305,11 @@ ETLP-25 — Create Device Interface
 
 ### Phase 2
 
-ETLP-26 — Implement ZKTeco Adapter
+ETLP-26 — Implement Concrete ZKTeco Biometric Device
 
 ### Phase 3
 
-ETLP-27 — Implement Device Factory
+ETLP-27 — Implement Biometric Device Factory
 
 ### Phase 4
 
@@ -319,10 +319,10 @@ ETLP-28 — Move Extraction Logic
 
 Milestone 3 is considered complete when:
 
-- DeviceClient exists as the runtime-facing abstraction
-- ZKTeco SDK interaction is isolated inside ZKTecoDeviceClient
+- BiometricDevice exists as the runtime-facing abstraction
+- ZKTeco SDK interaction is isolated inside ZKTecoDevice
 - Runtime orchestration contains no direct device SDK dependencies
-- DeviceFactory acts as the sole composition boundary
+- BiometricDeviceFactory acts as the sole composition boundary
 - Extraction logic resides within the device layer
 - Existing runtime behaviour remains unchanged
 
