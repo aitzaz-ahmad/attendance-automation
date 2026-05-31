@@ -5,7 +5,7 @@ from zk import ZK
 from attendance_etl import config
 from attendance_etl.logging_utils import get_logger
 
-logger = get_logger("DeviceClient")
+logger = get_logger("ZKTecoDevice")
 
 
 class ZKTecoDevice:
