@@ -1,8 +1,9 @@
 """Project-owned biometric device access contracts."""
 
-from typing import Any, Protocol, Sequence, Tuple
+from typing import Any, Protocol, Sequence, Tuple, runtime_checkable
 
 
+@runtime_checkable
 class DeviceClient(Protocol):
     """Runtime-facing contract for biometric device access."""
 

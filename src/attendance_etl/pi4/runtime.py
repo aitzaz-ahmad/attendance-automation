@@ -2,7 +2,7 @@ import json
 import logging
 
 from attendance_etl import config
-from attendance_etl.device.zkteco import ZKTecoDevice
+from attendance_etl.devices.zkteco_device import ZKTecoDevice
 from attendance_etl.logging_utils import configure_logging, get_logger
 from attendance_etl.messaging.pubsub import PubSubMessenger
 from attendance_etl.pi4.state import Pi4RuntimeState

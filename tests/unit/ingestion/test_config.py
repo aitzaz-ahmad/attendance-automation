@@ -2,7 +2,7 @@ import unittest
 from datetime import timedelta
 
 from attendance_etl import config
-from attendance_etl.device import zkteco
+from attendance_etl.devices import zkteco_device
 from attendance_etl.messaging.pubsub import PubSubMessenger
 from attendance_etl.pi4 import runtime
 from attendance_etl.pi4.state import FETCH_REVIEW_PERIOD, Pi4RuntimeState
@@ -115,13 +115,13 @@ class ConfigTests(unittest.TestCase):
         )
 
     def test_zkteco_connection_uses_configured_defaults(self):
-        original_zk = zkteco.ZK
+        original_zk = zkteco_device.ZK
         FakeZK.instances = []
-        zkteco.ZK = FakeZK
+        zkteco_device.ZK = FakeZK
         try:
-            zkteco.pull_records_from_device("192.0.2.10", 4370)
+            zkteco_device.ZKTecoDevice("192.0.2.10", 4370).pull_records()
         finally:
-            zkteco.ZK = original_zk
+            zkteco_device.ZK = original_zk
 
         self.assertEqual(len(FakeZK.instances), 1)
         instance = FakeZK.instances[0]

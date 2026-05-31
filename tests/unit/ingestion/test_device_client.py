@@ -1,19 +1,13 @@
+import ast
 import inspect
 import unittest
+from pathlib import Path
 from typing import Any, Sequence, Tuple
 
-from attendance_etl.device.base import DeviceClient
+from attendance_etl.devices.device_client import DeviceClient
+from attendance_etl.devices.zkteco_device import ZKTecoDevice
 
-
-class ZKImportBlocker:
-    def __init__(self):
-        self.attempted_imports = []
-
-    def find_spec(self, fullname, path=None, target=None):
-        if fullname == "zk" or fullname.startswith("zk."):
-            self.attempted_imports.append(fullname)
-            raise AssertionError("DeviceClient base abstraction imported vendor SDK dependency")
-        return None
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 class GenericDevice:
@@ -27,11 +21,37 @@ class GenericDevice:
         self.cleared = True
 
 
-class DeviceClientTests(unittest.TestCase):
-    def test_device_client_base_module_has_no_vendor_sdk_dependency(self):
-        import attendance_etl.device.base as base_module
+def imported_modules(path):
+    module_names = set()
+    tree = ast.parse(path.read_text(), filename=str(path))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            module_names.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            module_names.add(node.module)
+            module_names.update("{}.".format(node.module) + alias.name for alias in node.names)
 
-        module_globals = vars(base_module)
+    return module_names
+
+
+def imports_zk_sdk(path):
+    tree = ast.parse(path.read_text(), filename=str(path))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            if any(alias.name == "zk" or alias.name.startswith("zk.") for alias in node.names):
+                return True
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            if node.module == "zk" or node.module.startswith("zk."):
+                return True
+
+    return False
+
+
+class DeviceClientTests(unittest.TestCase):
+    def test_device_client_module_has_no_vendor_sdk_dependency(self):
+        import attendance_etl.devices.device_client as device_client_module
+
+        module_globals = vars(device_client_module)
 
         self.assertNotIn("zk", module_globals)
 
@@ -62,6 +82,52 @@ class DeviceClientTests(unittest.TestCase):
         self.assertEqual(users, ["user-1"])
         self.assertEqual(records, ["record-1"])
         self.assertTrue(device.cleared)
+
+    def test_zkteco_device_satisfies_device_client(self):
+        device = ZKTecoDevice("192.0.2.10", 4370)
+
+        typed_device: DeviceClient = device
+
+        self.assertIs(typed_device, device)
+        self.assertIsInstance(device, DeviceClient)
+
+    def test_zkteco_device_public_adapter_api_is_minimal(self):
+        public_methods = {
+            name for name, value in vars(ZKTecoDevice).items() if callable(value) and not name.startswith("_")
+        }
+
+        self.assertEqual(public_methods, {"pull_records", "clear_records"})
+        self.assertEqual(list(inspect.signature(ZKTecoDevice.pull_records).parameters), ["self"])
+        self.assertEqual(list(inspect.signature(ZKTecoDevice.clear_records).parameters), ["self"])
+        self.assertFalse(hasattr(ZKTecoDevice, "connect"))
+        self.assertFalse(hasattr(ZKTecoDevice, "disconnect"))
+
+    def test_runtime_and_tests_do_not_import_old_device_paths(self):
+        paths = [REPO_ROOT / "src/attendance_etl/pi4/runtime.py"]
+        paths.extend((REPO_ROOT / "tests/unit/ingestion").glob("*.py"))
+
+        imported = set()
+        for path in paths:
+            imported.update(imported_modules(path))
+
+        self.assertNotIn("attendance_etl.device", imported)
+        self.assertNotIn("attendance_etl.device.base", imported)
+        self.assertNotIn("attendance_etl.device.zkteco", imported)
+        self.assertNotIn("attendance_etl.devices.base", imported)
+        self.assertNotIn("attendance_etl.devices.zkteco", imported)
+        self.assertIn("attendance_etl.devices.zkteco_device", imported)
+
+    def test_zkteco_sdk_import_isolated_to_zkteco_device_module(self):
+        sdk_import_paths = {
+            path.relative_to(REPO_ROOT)
+            for path in (REPO_ROOT / "src/attendance_etl").rglob("*.py")
+            if imports_zk_sdk(path)
+        }
+
+        self.assertEqual(
+            sdk_import_paths,
+            {Path("src/attendance_etl/devices/zkteco_device.py")},
+        )
 
 
 if __name__ == "__main__":
