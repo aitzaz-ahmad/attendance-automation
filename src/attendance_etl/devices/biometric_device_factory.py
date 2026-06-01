@@ -14,6 +14,6 @@ class BiometricDeviceFactory:
         if device_config.vendor == ZKTECO_VENDOR:
             if not isinstance(device_config.device_options, ZKTecoOptions):
                 raise ValueError("Invalid ZKTeco device options")
-            return ZKTecoDevice(device_config.device_options)
+            return ZKTecoDevice(device_config.site_id, device_config.device_options)
 
         raise ValueError("Unsupported device vendor: {}".format(device_config.vendor))

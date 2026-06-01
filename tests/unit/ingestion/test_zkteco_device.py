@@ -1,7 +1,23 @@
+import inspect
 import unittest
+from datetime import datetime
 
+from attendance_etl.devices.biometric_device import BiometricDevice
 from attendance_etl.devices.biometric_device_config import ZKTecoOptions
 from attendance_etl.devices import zkteco_device
+
+
+class FakeUser:
+    def __init__(self, user_id, name):
+        self.user_id = user_id
+        self.name = name
+
+
+class FakeAttendanceRecord:
+    def __init__(self, user_id, timestamp, punch):
+        self.user_id = user_id
+        self.timestamp = timestamp
+        self.punch = punch
 
 
 class ConnectionSpy:
@@ -20,11 +36,11 @@ class ConnectionSpy:
 
     def get_users(self):
         self.events.append("get_users")
-        return ["user-1"]
+        return list(ZKSpy.users)
 
     def get_attendance(self):
         self.events.append("get_attendance")
-        return ["record-1"]
+        return list(ZKSpy.records)
 
     def clear_attendance(self):
         self.events.append("clear_attendance")
@@ -36,6 +52,8 @@ class ConnectionSpy:
 class ZKSpy:
     events = []
     instances = []
+    users = ["user-1"]
+    records = ["record-1"]
 
     def __init__(self, device_ip, port, timeout, force_udp, ommit_ping):
         self.device_ip = device_ip
@@ -57,6 +75,8 @@ class ZKTecoDeviceTests(unittest.TestCase):
         zkteco_device.ZK = ZKSpy
         ZKSpy.events = []
         ZKSpy.instances = []
+        ZKSpy.users = ["user-1"]
+        ZKSpy.records = ["record-1"]
 
     def tearDown(self):
         zkteco_device.ZK = self.original_zk
@@ -69,8 +89,42 @@ class ZKTecoDeviceTests(unittest.TestCase):
         values.update(overrides)
         return ZKTecoOptions(**values)
 
+    def test_zkteco_device_satisfies_biometric_device(self):
+        device = zkteco_device.ZKTecoDevice("munich-office", self.zkteco_options())
+
+        typed_device: BiometricDevice = device
+
+        self.assertIs(typed_device, device)
+        self.assertIsInstance(device, BiometricDevice)
+        self.assertEqual(device.site_id, "munich-office")
+
+    def test_zkteco_device_inherits_read_only_site_id_from_biometric_device(self):
+        device = zkteco_device.ZKTecoDevice("munich-office", self.zkteco_options())
+
+        self.assertIs(zkteco_device.ZKTecoDevice.site_id, BiometricDevice.site_id)
+        self.assertEqual(device.site_id, "munich-office")
+        with self.assertRaises(AttributeError):
+            device.site_id = "berlin-office"
+
+    def test_zkteco_device_public_adapter_api_is_minimal(self):
+        public_methods = {
+            name
+            for name, value in vars(zkteco_device.ZKTecoDevice).items()
+            if callable(value) and not name.startswith("_")
+        }
+
+        self.assertEqual(public_methods, {"extract_attendance_records", "pull_records", "clear_records"})
+        self.assertEqual(
+            list(inspect.signature(zkteco_device.ZKTecoDevice.extract_attendance_records).parameters),
+            ["self", "from_date", "to_date"],
+        )
+        self.assertEqual(list(inspect.signature(zkteco_device.ZKTecoDevice.pull_records).parameters), ["self"])
+        self.assertEqual(list(inspect.signature(zkteco_device.ZKTecoDevice.clear_records).parameters), ["self"])
+        self.assertFalse(hasattr(zkteco_device.ZKTecoDevice, "connect"))
+        self.assertFalse(hasattr(zkteco_device.ZKTecoDevice, "disconnect"))
+
     def test_pull_records_preserves_connection_lifecycle(self):
-        users, records = zkteco_device.ZKTecoDevice(self.zkteco_options()).pull_records()
+        users, records = zkteco_device.ZKTecoDevice("munich-office", self.zkteco_options()).pull_records()
 
         self.assertEqual(users, ["user-1"])
         self.assertEqual(records, ["record-1"])
@@ -88,8 +142,44 @@ class ZKTecoDeviceTests(unittest.TestCase):
             ],
         )
 
+    def test_extract_attendance_records_owns_zkteco_extraction_sequence(self):
+        ZKSpy.users = [FakeUser(100, "Ada Lovelace")]
+        ZKSpy.records = [
+            FakeAttendanceRecord(100, datetime(2026, 5, 27, 7, 59, 59), 0),
+            FakeAttendanceRecord(100, datetime(2026, 5, 27, 8, 1, 0), 1),
+        ]
+
+        records = zkteco_device.ZKTecoDevice("munich-office", self.zkteco_options()).extract_attendance_records(
+            datetime(2026, 5, 27, 8, 0, 0)
+        )
+
+        self.assertEqual(
+            records,
+            [
+                {
+                    "username": "Ada Lovelace",
+                    "timestamp": "27-05-2026 08:01:00",
+                    "entry": "Check Out",
+                    "device": "munich-office",
+                }
+            ],
+        )
+        self.assertEqual(
+            ZKSpy.events,
+            [
+                "instantiate",
+                "connect",
+                "disable_device",
+                "get_firmware_version",
+                "get_users",
+                "get_attendance",
+                "enable_device",
+                "disconnect",
+            ],
+        )
+
     def test_clear_records_preserves_connection_lifecycle(self):
-        zkteco_device.ZKTecoDevice(self.zkteco_options()).clear_records()
+        zkteco_device.ZKTecoDevice("munich-office", self.zkteco_options()).clear_records()
 
         self.assertEqual(
             ZKSpy.events,
@@ -106,17 +196,29 @@ class ZKTecoDeviceTests(unittest.TestCase):
 
     def test_zkteco_device_uses_explicit_connection_options(self):
         zkteco_device.ZKTecoDevice(
+            "munich-office",
             self.zkteco_options(
                 timeout=15,
                 force_udp=True,
                 ommit_ping=True,
-            )
+            ),
         ).pull_records()
 
         instance = ZKSpy.instances[0]
         self.assertEqual(instance.timeout, 15)
         self.assertIs(instance.force_udp, True)
         self.assertIs(instance.ommit_ping, True)
+
+    def test_zkteco_device_uses_implementation_defaults_for_absent_optional_options(self):
+        zkteco_device.ZKTecoDevice("munich-office", self.zkteco_options()).pull_records()
+
+        self.assertEqual(len(ZKSpy.instances), 1)
+        instance = ZKSpy.instances[0]
+        self.assertEqual(instance.device_ip, "192.0.2.10")
+        self.assertEqual(instance.port, 4370)
+        self.assertEqual(instance.timeout, zkteco_device.DEFAULT_TIMEOUT)
+        self.assertEqual(instance.force_udp, zkteco_device.DEFAULT_FORCE_UDP)
+        self.assertEqual(instance.ommit_ping, zkteco_device.DEFAULT_OMMIT_PING)
 
 
 if __name__ == "__main__":

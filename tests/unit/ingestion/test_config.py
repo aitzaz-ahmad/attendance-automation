@@ -2,8 +2,6 @@ import unittest
 from datetime import timedelta
 
 from attendance_etl import config
-from attendance_etl.devices.biometric_device_config import ZKTecoOptions
-from attendance_etl.devices import zkteco_device
 from attendance_etl.messaging.pubsub import PubSubMessenger
 from attendance_etl.pi4 import runtime
 from attendance_etl.pi4.state import FETCH_REVIEW_PERIOD, Pi4RuntimeState
@@ -20,44 +18,6 @@ class MessengerSpy:
 
     def publish_message_to_topic(self, topic_name, data):
         self.published.append((topic_name, data))
-
-
-class FakeConnection:
-    def disable_device(self):
-        pass
-
-    def enable_device(self):
-        pass
-
-    def get_firmware_version(self):
-        return "fake"
-
-    def get_users(self):
-        return []
-
-    def get_attendance(self):
-        return []
-
-    def clear_attendance(self):
-        pass
-
-    def disconnect(self):
-        pass
-
-
-class FakeZK:
-    instances = []
-
-    def __init__(self, device_ip, port, timeout, force_udp, ommit_ping):
-        self.device_ip = device_ip
-        self.port = port
-        self.timeout = timeout
-        self.force_udp = force_udp
-        self.ommit_ping = ommit_ping
-        FakeZK.instances.append(self)
-
-    def connect(self):
-        return FakeConnection()
 
 
 class ConfigTests(unittest.TestCase):
@@ -111,28 +71,6 @@ class ConfigTests(unittest.TestCase):
                 (config.CREATE_REVIEW_SHEET_TOPIC, {"month": "May"}),
             ],
         )
-
-    def test_zkteco_connection_uses_configured_defaults(self):
-        original_zk = zkteco_device.ZK
-        FakeZK.instances = []
-        zkteco_device.ZK = FakeZK
-        try:
-            zkteco_device.ZKTecoDevice(
-                ZKTecoOptions(
-                    ip_address="192.0.2.10",
-                    comm_port=4370,
-                )
-            ).pull_records()
-        finally:
-            zkteco_device.ZK = original_zk
-
-        self.assertEqual(len(FakeZK.instances), 1)
-        instance = FakeZK.instances[0]
-        self.assertEqual(instance.device_ip, "192.0.2.10")
-        self.assertEqual(instance.port, 4370)
-        self.assertEqual(instance.timeout, zkteco_device.DEFAULT_TIMEOUT)
-        self.assertEqual(instance.force_udp, zkteco_device.DEFAULT_FORCE_UDP)
-        self.assertEqual(instance.ommit_ping, zkteco_device.DEFAULT_OMMIT_PING)
 
 
 if __name__ == "__main__":
