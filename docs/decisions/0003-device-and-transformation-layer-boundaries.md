@@ -32,7 +32,9 @@ while preserving the existing runtime behaviour.
 
 ### Boundary Abstractions
 
-- DeviceClient
+- BiometricDeviceConfig
+- VendorOptions
+- BiometricDevice
 - TransformationStrategy
 
 ### Domain Models
@@ -57,7 +59,7 @@ Dependencies shall point downward only.
         ↓
     IngestionWorkflow
         ↓
-    DeviceClient
+    BiometricDevice
         ↓
     TransformationStrategy
         ↓
@@ -65,7 +67,7 @@ Dependencies shall point downward only.
 
     --------------------------------
 
-    ZKTecoDeviceClient
+    ZKTecoDevice
         ↓
     ZKTeco SDK
 
@@ -86,7 +88,8 @@ The runtime should not directly depend on:
 
 The runtime should operate on:
 
-- DeviceClient
+- BiometricDeviceConfig
+- BiometricDevice
 - Employee
 - AttendanceEvent
 - RuntimeState
@@ -114,19 +117,89 @@ High-level policy should not depend on low-level details.
 
 Low-level details should be hidden behind stable project-owned contracts.
 
-## Decision 3: DeviceFactory Is The Composition Boundary
+## Decision 3: Biometric Device Configuration Keeps Deployment Metadata At The Root
+
+Biometric device configuration shall keep deployment/domain metadata and
+vendor-neutral fields at the root level.
+
+`BiometricDeviceConfig` must not expose ZKTeco-specific fields directly.
+
+The root configuration representation shall contain:
+
+- `site_id: str`
+- `vendor: str`
+- `device_options: VendorOptions`
+
+`site_id` identifies the office, site, or location from which attendance records
+are extracted.
+
+`site_id` is deployment/domain metadata. It is independent of the biometric
+device vendor and communication mechanism, and it may later be propagated into
+canonical attendance records as source-site metadata.
+
+`vendor` selects the biometric device implementation.
+
+`device_options` contains vendor-specific connection metadata.
+
+Vendor-specific configuration belongs behind the `VendorOptions` abstraction.
+
+The current ZKTeco-specific configuration belongs in `ZKTecoOptions`.
+
+ZKTeco-specific fields include:
+
+- `ip_address: str`
+- `comm_port: int`
+- `timeout: Optional[int]`
+- `force_udp: Optional[bool]`
+- `ommit_ping: Optional[bool]`
+
+These fields must not live in global ingestion-client configuration.
+
+These fields also must not be used to carry root deployment metadata such as
+`site_id`.
+
+ZKTeco implementation defaults belong to `ZKTecoDevice`, not to global `config.py`.
+When optional ZKTeco options are absent from the device configuration file,
+`ZKTecoDevice` shall initialise them using its own implementation-level defaults.
+
+Runtime startup may depend on the project-owned `BiometricDeviceConfig` and
+`BiometricDevice` abstractions.
+
+Runtime startup shall not depend on `ZKTecoDevice` directly.
+
+Configuration loading and device construction are separate responsibilities:
+
+- a configuration builder or loader reads JSON, validates it, and constructs the
+  correct `VendorOptions` object;
+- `BiometricDeviceFactory` consumes `BiometricDeviceConfig` and constructs the
+  concrete `BiometricDevice`.
+
+### Rationale
+
+The root configuration contract is part of the runtime boundary.
+
+Keeping deployment metadata such as `site_id` at the root prevents office,
+site, or location identity from being coupled to a vendor-specific options
+object. Keeping vendor-specific connection details behind `VendorOptions`
+prevents ZKTeco details from leaking into runtime orchestration and keeps future
+vendor support from requiring new top-level connection fields.
+
+Separating configuration loading from concrete device construction also keeps
+validation, file I/O, and object creation in distinct ownership boundaries.
+
+## Decision 4: BiometricDeviceFactory Is The Composition Boundary
 
 ### Context
 
 The project intentionally adopts a polymorphic device architecture.
 
-Runtime orchestration should never reference concrete device implementations directly.
+Runtime orchestration should never reference concrete biometric device implementations directly.
 
 ### Decision
 
-Concrete device construction shall occur exclusively through DeviceFactory.
+Concrete device construction shall occur exclusively through BiometricDeviceFactory.
 
-The runtime shall not directly construct concrete device clients.
+The runtime shall not directly construct concrete biometric devices.
 
 ### Rationale
 
@@ -136,13 +209,19 @@ The purpose is to isolate concrete object creation from high-level orchestration
 
 Adding a new device should require:
 
-- creating a new DeviceClient implementation
+- creating a new BiometricDevice implementation
 - creating a matching TransformationStrategy implementation
-- extending DeviceFactory
+- extending BiometricDeviceFactory
 
 without modifying runtime orchestration code.
 
-## Decision 4: Device Access And Data Transformation Are Separate Concerns
+The factory consumes validated `BiometricDeviceConfig` and returns the
+`BiometricDevice` abstraction.
+
+It does not read JSON configuration files and it does not own configuration
+validation.
+
+## Decision 5: Device Access And Data Transformation Are Separate Concerns
 
 Device access and data transformation shall remain separate responsibilities.
 
@@ -160,22 +239,22 @@ Device access and data transformation shall remain separate responsibilities.
 - normalisation
 - model construction
 
-## Decision 5: Device Clients Depend On Transformation Strategy Abstractions
+## Decision 6: Biometric Devices Depend On Transformation Strategy Abstractions
 
 ### Decision
 
-Device clients shall depend on TransformationStrategy abstractions rather than concrete transformation implementations.
+Biometric devices shall depend on TransformationStrategy abstractions rather than concrete transformation implementations.
 
 Transformation strategies shall be injected through constructors.
 
 Example:
 
-    DeviceClient
+    BiometricDevice
         -> TransformationStrategy
 
 not:
 
-    DeviceClient
+    BiometricDevice
         -> ConcreteTransformationStrategy
 
 ### Rationale
@@ -184,7 +263,7 @@ This preserves loose coupling between device access and data transformation.
 
 The factory remains responsible for wiring concrete implementations together.
 
-## Decision 6: Existing User Mapping Is An Implementation Optimisation
+## Decision 7: Existing User Mapping Is An Implementation Optimisation
 
 ### Context
 
@@ -214,7 +293,7 @@ It shall not become:
 - a workflow dependency
 - a public abstraction
 
-## Decision 7: Runtime Must Remain Device-Agnostic
+## Decision 8: Runtime Must Remain Device-Agnostic
 
 Adding a new device should not require changes to:
 
@@ -226,9 +305,9 @@ Adding a new device should not require changes to:
 
 Only:
 
-- DeviceClient implementations
+- BiometricDevice implementations
 - TransformationStrategy implementations
-- DeviceFactory
+- BiometricDeviceFactory
 
 should require modification.
 
@@ -246,18 +325,21 @@ should require modification.
 
 - Additional abstraction layers.
 - Additional constructor wiring.
-- DeviceFactory maintenance when new devices are introduced.
+- BiometricDeviceFactory maintenance when new devices are introduced.
 
 ## Rejected Alternatives
 
 | Alternative | Reason Rejected |
 |------------|-----------------|
-| Runtime depends directly on concrete device implementations | Violates dependency inversion and requires orchestration changes when new devices are introduced. |
+| Runtime depends directly on concrete biometric device implementations | Violates dependency inversion and requires orchestration changes when new devices are introduced. |
 | Transformation logic inside runtime | Mixes orchestration concerns with data interpretation and canonicalisation. |
 | Transformation logic inside workflow | Couples workflow coordination to device-specific data semantics. |
 | Shared user_mapping contract | Treats an implementation optimisation as a public architectural boundary. |
-| DeviceClient directly constructs its transformation strategy | Introduces tight coupling between device access and transformation implementations and makes testing more difficult. |
+| BiometricDevice directly constructs its transformation strategy | Introduces tight coupling between device access and transformation implementations and makes testing more difficult. |
 | Runtime imports vendor SDKs directly | Leaks low-level implementation details into high-level policy code and increases coupling to vendor-specific dependencies. |
+| ZKTeco fields on `BiometricDeviceConfig` | Leaks vendor-specific connection details into the root runtime configuration contract. |
+| `site_id` inside `VendorOptions` or `ZKTecoOptions` | Couples deployment/domain metadata to vendor-specific connection configuration. |
+| `BiometricDeviceFactory` reads JSON directly | Mixes file loading, validation, and concrete object construction in one boundary. |
 
 ## References
 

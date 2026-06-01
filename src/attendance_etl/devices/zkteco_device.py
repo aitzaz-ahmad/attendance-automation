@@ -2,16 +2,23 @@ from typing import Any, Sequence, Tuple
 
 from zk import ZK
 
-from attendance_etl import config
+from attendance_etl.devices.biometric_device_config import ZKTecoOptions
 from attendance_etl.logging_utils import get_logger
 
-logger = get_logger("DeviceClient")
+logger = get_logger("ZKTecoDevice")
+
+DEFAULT_TIMEOUT = 10
+DEFAULT_FORCE_UDP = False
+DEFAULT_OMMIT_PING = False
 
 
 class ZKTecoDevice:
-    def __init__(self, device_ip, comm_port):
-        self.device_ip = device_ip
-        self.comm_port = comm_port
+    def __init__(self, options: ZKTecoOptions):
+        self.device_ip = options.ip_address
+        self.comm_port = options.comm_port
+        self.timeout = DEFAULT_TIMEOUT if options.timeout is None else options.timeout
+        self.force_udp = DEFAULT_FORCE_UDP if options.force_udp is None else options.force_udp
+        self.ommit_ping = DEFAULT_OMMIT_PING if options.ommit_ping is None else options.ommit_ping
 
     def clear_records(self) -> None:
         self._clear_records_from_device()
@@ -23,9 +30,9 @@ class ZKTecoDevice:
         return ZK(
             self.device_ip,
             port=self.comm_port,
-            timeout=config.ZKTECO_TIMEOUT,
-            force_udp=config.ZKTECO_FORCE_UDP,
-            ommit_ping=config.ZKTECO_OMMIT_PING,
+            timeout=self.timeout,
+            force_udp=self.force_udp,
+            ommit_ping=self.ommit_ping,
         )
 
     def _clear_records_from_device(self):

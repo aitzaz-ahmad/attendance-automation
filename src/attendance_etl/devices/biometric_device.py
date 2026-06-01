@@ -4,7 +4,7 @@ from typing import Any, Protocol, Sequence, Tuple, runtime_checkable
 
 
 @runtime_checkable
-class DeviceClient(Protocol):
+class BiometricDevice(Protocol):
     """Runtime-facing contract for biometric device access."""
 
     def pull_records(self) -> Tuple[Sequence[Any], Sequence[Any]]:

@@ -51,6 +51,36 @@ flowchart LR
 For the ordered stage-by-stage pipeline, including current implementation paths and known limitations, see
 [Data Pipeline](docs/data-pipeline.md).
 
+## Biometric Device Configuration
+
+The Raspberry Pi ingestion runtime loads biometric device configuration from
+`biometric_device_config.json`.
+
+For the current ZKTeco device path, the configuration shape is:
+
+```json
+{
+  "site_id": "munich-office",
+  "vendor": "zkteco",
+  "device_options": {
+    "ip_address": "192.168.1.201",
+    "comm_port": 4370,
+    "timeout": 10,
+    "force_udp": false,
+    "ommit_ping": false
+  }
+}
+```
+
+`site_id` identifies the office, site, or location from which attendance records
+are extracted. It is deployment/domain metadata on `BiometricDeviceConfig`,
+independent of the biometric device vendor and communication mechanism.
+
+`vendor` selects the biometric device implementation. `device_options` contains
+vendor-specific connection metadata; for ZKTeco devices, `ip_address`,
+`comm_port`, `timeout`, `force_udp`, and `ommit_ping` remain ZKTeco-specific
+options.
+
 ## Reliability Mechanisms
 
 The ingestion workflow uses a finite state machine with checkpoint persistence, retry paths, and interruption

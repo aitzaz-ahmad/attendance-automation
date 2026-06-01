@@ -22,16 +22,17 @@ As a result:
 - orchestration code is aware of device-specific implementation details
 - introducing a new device vendor would require changes outside the device layer
 
-Milestone 3 introduces a stable abstraction boundary that allows runtime orchestration to remain independent of concrete device implementations.
+Milestone 3 introduces a stable abstraction boundary that allows runtime orchestration to remain independent of concrete biometric device implementations.
 
 ## Goals
 
 Milestone 3 shall:
 
-- establish a DeviceClient abstraction
+- establish a BiometricDevice abstraction
 - encapsulate all device SDK interaction
-- remove concrete device references from runtime code
-- introduce a composition boundary through DeviceFactory
+- remove concrete biometric device references from runtime code
+- introduce a composition boundary through BiometricDeviceFactory
+- keep biometric device configuration vendor-neutral at the root level
 - move extraction responsibilities behind the device boundary
 
 The milestone should enable future support for multiple biometric device vendors without requiring orchestration changes.
@@ -46,9 +47,16 @@ Milestone 3 does not introduce:
 - AttendanceEvent construction rules
 - Employee construction rules
 - transformation strategies
+- plugin discovery
+- importlib-based loading
+- dependency injection containers
+- additional biometric vendors
+- extraction pipeline migration
+- GitHub project mutations
 - multi-device runtime support
 
-Those concerns belong to Milestone 4.
+Those concerns are outside this milestone. Transformation concerns belong to
+Milestone 4.
 
 ## Relationship To ADR-0003
 
@@ -56,9 +64,9 @@ This proposal implements the architectural decisions documented in ADR-0003.
 
 In particular:
 
-- runtime depends on abstractions rather than concrete devices
+- runtime depends on abstractions rather than concrete biometric devices
 - device SDKs remain hidden behind concrete implementations
-- DeviceFactory acts as the composition boundary
+- BiometricDeviceFactory acts as the composition boundary
 - device access and transformation remain separate concerns
 
 ## Current Architecture
@@ -75,23 +83,135 @@ Device-specific knowledge currently exists outside a dedicated device boundary.
 
 ## Target Architecture
 
-The target architecture after Milestone 3 is:
+The aligned target architecture is:
+
+    PiRuntime
+        ↓
+    BiometricDeviceConfigBuilder
+        ↓
+    BiometricDeviceConfig
+        ↓
+    BiometricDeviceFactory
+        ↓
+    BiometricDevice
+
+    ZKTecoOptions
+        ↓
+    ZKTecoDevice
+        ↓
+    ZKTeco SDK
+
+Runtime orchestration should depend on BiometricDeviceConfig and BiometricDevice,
+not on concrete biometric device implementations.
+
+Concrete device construction should occur exclusively through BiometricDeviceFactory.
+
+Configuration loading and concrete device construction are separate responsibilities.
+
+## Configuration Object Model
+
+The intended biometric device configuration object model is:
+
+    VendorOptions
+        ↑
+        |
+    ZKTecoOptions
+
+    BiometricDeviceConfig
+        - site_id: str
+        - vendor: str
+        - device_options: VendorOptions
+
+    ZKTecoOptions
+        - ip_address: str
+        - comm_port: int
+        - timeout: Optional[int]
+        - force_udp: Optional[bool]
+        - ommit_ping: Optional[bool]
+
+`BiometricDeviceConfig` is the vendor-neutral runtime representation.
+
+It must not expose ZKTeco-specific fields directly at the root level.
+
+`site_id` identifies the office, site, or location from which attendance records
+are extracted. It is deployment/domain metadata, independent of the biometric
+device vendor and communication mechanism, and may later be propagated into
+canonical attendance records as source-site metadata.
+
+`vendor` selects the biometric device implementation.
+
+`device_options` contains vendor-specific connection metadata.
+
+`VendorOptions` is the base abstraction for vendor-specific configuration.
+
+`ZKTecoOptions` contains the ZKTeco-specific connection options required by the
+concrete ZKTeco implementation.
+
+`BiometricDeviceConfigBuilder` or an equivalent loader owns reading the JSON
+configuration file, validating required fields, validating vendor-specific
+options, and constructing the correct `VendorOptions` object.
+
+`BiometricDeviceFactory` receives a validated `BiometricDeviceConfig` and
+constructs the concrete `BiometricDevice`.
+
+The factory does not own JSON file I/O or configuration validation.
+
+## Startup Configuration Invariant
+
+The ingestion client is configuration-driven.
+
+A valid biometric device configuration file is required before runtime startup
+can proceed.
+
+Startup must fail fast if:
+
+- the configuration file is missing
+- the configuration file is unreadable
+- the configuration file contains invalid JSON
+- required fields are missing
+- the vendor is unsupported
+- vendor-specific options are invalid
+
+The runtime must not instantiate or communicate with a biometric device when
+configuration loading or validation fails.
+
+## ZKTeco Configuration Ownership
+
+The following options are ZKTeco-specific and belong in `ZKTecoOptions` or
+inside `ZKTecoDevice` implementation defaults:
+
+- `ip_address`
+- `comm_port`
+- `timeout`
+- `force_udp`
+- `ommit_ping`
+
+These options must not live in global ingestion-client configuration.
+
+They also must not contain root deployment/domain metadata such as `site_id`.
+
+If optional ZKTeco options are not present in the biometric device configuration
+file, `ZKTecoDevice` must initialise them using its own implementation-level
+defaults.
+
+## Previous Target Architecture
+
+Earlier planning described the target architecture as:
 
     PiRuntime
         ↓
     IngestionWorkflow
         ↓
-    DeviceClient
+    BiometricDevice
 
-    DeviceFactory
+    BiometricDeviceFactory
         ↓
-    ZKTecoDeviceClient
+    ZKTecoDevice
         ↓
     ZKTeco SDK
 
-Runtime orchestration should depend only on DeviceClient.
-
-Concrete device construction should occur exclusively through DeviceFactory.
+This remains valid for device access, but configuration loading now has an
+explicit boundary before device construction.
 
 ## Dependency Graph
 
@@ -101,13 +221,13 @@ Allowed dependencies:
         ↓
     IngestionWorkflow
         ↓
-    DeviceClient
+    BiometricDevice
 
-    DeviceFactory
+    BiometricDeviceFactory
         ↓
-    ZKTecoDeviceClient
+    ZKTecoDevice
 
-    ZKTecoDeviceClient
+    ZKTecoDevice
         ↓
     ZKTeco SDK
 
@@ -141,11 +261,11 @@ The device layer returns raw device data.
 
 Interpretation of device data belongs to Milestone 4.
 
-## DeviceClient Contract
+## BiometricDevice Contract
 
 ### Responsibilities
 
-DeviceClient is responsible for:
+BiometricDevice is responsible for:
 
 - connecting to devices
 - disconnecting from devices
@@ -175,19 +295,21 @@ It should not own transformation responsibilities.
 
 Exact method signatures are intentionally left flexible and should be derived from the current SDK integration during ETLP-25.
 
-## DeviceFactory Contract
+## BiometricDeviceFactory Contract
 
-DeviceFactory acts as the composition boundary.
+BiometricDeviceFactory acts as the composition boundary.
 
 ### Responsibilities
 
-- create DeviceClient implementations
+- create BiometricDevice implementations
 - wire required dependencies
-- hide concrete device construction from runtime code
+- hide concrete biometric device construction from runtime code
+- consume BiometricDeviceConfig
 
 ### Non-Responsibilities
 
 - runtime orchestration
+- JSON configuration loading
 - SDK communication
 - transformation
 - validation
@@ -195,7 +317,7 @@ DeviceFactory acts as the composition boundary.
 
 ### Design Notes
 
-DeviceFactory exists to support a polymorphic architecture.
+BiometricDeviceFactory exists to support a polymorphic architecture.
 
 Its purpose is not convenience.
 
@@ -209,57 +331,60 @@ The milestone shall not introduce:
 - registries
 - dependency injection containers
 - abstract factories
+- importlib-based loading
 
-## ZKTecoDeviceClient Responsibilities
+## ZKTecoDevice Responsibilities
 
-ZKTecoDeviceClient owns:
+ZKTecoDevice owns:
 
 - ZKTeco SDK imports
 - device connection lifecycle
 - user extraction
 - attendance extraction
 - attendance record clearing
+- ZKTeco implementation-level defaults for optional ZKTeco options
 
-ZKTecoDeviceClient must not own:
+ZKTecoDevice must not own:
 
 - canonicalisation
 - validation
 - normalisation
 - backend payload construction
+- global ingestion-client configuration
 
 ## ETLP-25: Create Device Interface
 
 ### Scope
 
-Introduce the DeviceClient abstraction.
+Introduce the BiometricDevice abstraction.
 
 ### Expected Deliverables
 
-- DeviceClient interface or abstract base class
+- BiometricDevice interface or abstract base class
 - Documentation of responsibilities and boundaries
-- Runtime dependencies updated to target DeviceClient
+- Runtime dependencies updated to target BiometricDevice
 
 ### Acceptance Criteria
 
-- Runtime depends on DeviceClient rather than concrete device implementations
+- Runtime depends on BiometricDevice rather than concrete biometric device implementations
 - Device responsibilities are clearly defined
 - No runtime behaviour changes
 
-## ETLP-26: Implement ZKTeco Adapter
+## ETLP-26: Implement ZKTeco Concrete Biometric Device
 
 ### Scope
 
-Create ZKTecoDeviceClient as the concrete implementation of DeviceClient.
+Create ZKTecoDevice as the concrete implementation of BiometricDevice.
 
 ### Expected Deliverables
 
-- ZKTecoDeviceClient
+- ZKTecoDevice
 - Encapsulation of ZKTeco SDK imports
 - Encapsulation of ZKTeco extraction logic
 
 ### Acceptance Criteria
 
-- ZKTeco SDK interaction occurs only within ZKTecoDeviceClient
+- ZKTeco SDK interaction occurs only within ZKTecoDevice
 - Existing extraction behaviour is preserved
 - Runtime behaviour remains unchanged
 
@@ -267,17 +392,17 @@ Create ZKTecoDeviceClient as the concrete implementation of DeviceClient.
 
 ### Scope
 
-Introduce DeviceFactory as the composition boundary.
+Introduce BiometricDeviceFactory as the composition boundary.
 
 ### Expected Deliverables
 
-- DeviceFactory
-- Centralised construction of DeviceClient implementations
+- BiometricDeviceFactory
+- Centralised construction of BiometricDevice implementations
 
 ### Acceptance Criteria
 
-- Runtime does not instantiate concrete device clients directly
-- DeviceFactory constructs the correct concrete implementation
+- Runtime does not instantiate concrete biometric devices directly
+- BiometricDeviceFactory constructs the correct concrete implementation
 - No runtime behaviour changes
 
 ## ETLP-28: Move Extraction Logic
@@ -288,7 +413,7 @@ Move extraction responsibilities behind the device boundary.
 
 ### Expected Deliverables
 
-- Device extraction logic moved into ZKTecoDeviceClient
+- Device extraction logic moved into ZKTecoDevice
 - Runtime orchestration simplified
 
 ### Acceptance Criteria
@@ -305,11 +430,11 @@ ETLP-25 — Create Device Interface
 
 ### Phase 2
 
-ETLP-26 — Implement ZKTeco Adapter
+ETLP-26 — Implement Concrete ZKTeco Biometric Device
 
 ### Phase 3
 
-ETLP-27 — Implement Device Factory
+ETLP-27 — Implement Biometric Device Factory
 
 ### Phase 4
 
@@ -319,11 +444,14 @@ ETLP-28 — Move Extraction Logic
 
 Milestone 3 is considered complete when:
 
-- DeviceClient exists as the runtime-facing abstraction
-- ZKTeco SDK interaction is isolated inside ZKTecoDeviceClient
+- BiometricDevice exists as the runtime-facing abstraction
+- ZKTeco SDK interaction is isolated inside ZKTecoDevice
 - Runtime orchestration contains no direct device SDK dependencies
-- DeviceFactory acts as the sole composition boundary
+- BiometricDeviceFactory acts as the sole composition boundary
 - Extraction logic resides within the device layer
+- BiometricDeviceConfig contains root `site_id`, `vendor`, and `device_options`
+- BiometricDeviceConfig is vendor-neutral at the root level
+- ZKTeco-specific options are isolated in ZKTecoOptions or ZKTecoDevice defaults
 - Existing runtime behaviour remains unchanged
 
 ## Risks
@@ -336,6 +464,7 @@ Avoid introducing:
 - registries
 - dependency injection containers
 - abstract factories
+- importlib-based loading
 
 The factory should remain minimal.
 

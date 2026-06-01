@@ -7,12 +7,12 @@ logger = get_logger("MessagingClient")
 
 
 class PubSubMessenger:
-    def __init__(self, device_identifier, project_id=config.PROJECT_ID):
-        self.device_identifier = device_identifier
+    def __init__(self, site_id, project_id=config.PROJECT_ID):
+        self.site_id = site_id
         self.project_id = project_id
 
     def subscription_name(self, topic_name):
-        return config.SUBSCRIPTION_NAME.format(topic_name, self.device_identifier)
+        return config.SUBSCRIPTION_NAME.format(topic_name, self.site_id)
 
     def publish_message_to_topic(self, topic_name, data):
         publish_message_to_topic(self.project_id, topic_name, data)
@@ -21,7 +21,7 @@ class PubSubMessenger:
         create_subscription(topic_name, subscription_name, self.project_id)
 
     def sync_pull_message(self, subscription_name):
-        return sync_pull_message(subscription_name, self.device_identifier, self.project_id)
+        return sync_pull_message(subscription_name, self.site_id, self.project_id)
 
 
 def publish_message_to_topic(project_id, topic_name, data):
@@ -88,7 +88,7 @@ def create_subscription(topic_name, subscription_name, project_id=config.PROJECT
         )
 
 
-def is_directed_to_device(pubsub_message, device_identifier):
+def is_directed_to_device(pubsub_message, site_id):
     """
     checks and returns whether or not a GCP pub/sub message is
     directed to this Rasberry Pi4 device
@@ -97,12 +97,12 @@ def is_directed_to_device(pubsub_message, device_identifier):
     attributes = pubsub_message.attributes
     if attributes:
         target_device = attributes["location"]
-        for_me = target_device == device_identifier
+        for_me = target_device == site_id
 
     return for_me
 
 
-def sync_pull_message(subscription_name, device_identifier, project_id=config.PROJECT_ID):
+def sync_pull_message(subscription_name, site_id, project_id=config.PROJECT_ID):
     """
     synchronously pulls pub/sub messages from the input subscription_name
     until a message targeted for this Raspberry Pi4 device is received
@@ -126,7 +126,7 @@ def sync_pull_message(subscription_name, device_identifier, project_id=config.PR
         ack_ids = []
         for received_message in response.received_messages:
             ack_ids.append(received_message.ack_id)
-            msg_receipt = is_directed_to_device(received_message.message, device_identifier)
+            msg_receipt = is_directed_to_device(received_message.message, site_id)
 
             if msg_receipt:
                 payload = received_message.message.data

@@ -28,8 +28,3 @@ BIOMETRIC_DEVICE_CONFIG_FILE = "biometric_device_config.json"
 # Runtime sleep intervals for normal polling and missing-review-period recovery.
 POLLING_DELAY = timedelta(minutes=15)
 DEEP_SLEEP_DURATION = timedelta(hours=1)
-
-# ZKTeco device connection options. The ommit_ping name follows the pyzk API.
-ZKTECO_TIMEOUT = 10
-ZKTECO_FORCE_UDP = False
-ZKTECO_OMMIT_PING = False

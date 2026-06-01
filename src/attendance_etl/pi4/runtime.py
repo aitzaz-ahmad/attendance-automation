@@ -1,8 +1,8 @@
-import json
 import logging
 
 from attendance_etl import config
-from attendance_etl.devices.zkteco_device import ZKTecoDevice
+from attendance_etl.devices.biometric_device_config import BiometricDeviceConfigBuilder
+from attendance_etl.devices.biometric_device_factory import BiometricDeviceFactory
 from attendance_etl.logging_utils import configure_logging, get_logger
 from attendance_etl.messaging.pubsub import PubSubMessenger
 from attendance_etl.pi4.state import Pi4RuntimeState
@@ -13,16 +13,14 @@ from attendance_etl.storage.snapshot import load_snapshot
 logger = get_logger("Pi4Runtime")
 
 
-def setup_device_info(path=config.BIOMETRIC_DEVICE_CONFIG_FILE):
-    """
-    loads the configuration details of the attendance devices
-    from the configuration file
-    """
-    with open(path) as json_file:
-        device_info = json.load(json_file)
+def load_biometric_device_config(path=config.BIOMETRIC_DEVICE_CONFIG_FILE):
+    device_config = BiometricDeviceConfigBuilder.from_json_file(path)
+    logger.info("device config: %s", device_config)
+    return device_config
 
-    logger.info("device config: %s", device_info)
-    return device_info
+
+def device_info_from_config(device_config):
+    return {"site_id": device_config.site_id}
 
 
 def load_snapshot_into_state(state, path=config.SNAPSHOT_FILE):
@@ -48,9 +46,10 @@ def bootstrap_pi4(verbosity=logging.INFO):
 
     state = Pi4RuntimeState()
 
-    state.device_info = setup_device_info()
-    device = ZKTecoDevice(state.device_info["ip"], state.device_info["port"])
-    messenger = PubSubMessenger(state.device_info["identifier"])
+    device_config = load_biometric_device_config()
+    state.device_info = device_info_from_config(device_config)
+    device = BiometricDeviceFactory.create(device_config)
+    messenger = PubSubMessenger(state.device_info["site_id"])
 
     review_period = load_review_period()
     state.review_period_info = review_period.to_dict()

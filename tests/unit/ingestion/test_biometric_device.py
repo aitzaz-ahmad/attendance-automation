@@ -4,7 +4,8 @@ import unittest
 from pathlib import Path
 from typing import Any, Sequence, Tuple
 
-from attendance_etl.devices.device_client import DeviceClient
+from attendance_etl.devices.biometric_device import BiometricDevice
+from attendance_etl.devices.biometric_device_config import ZKTecoOptions
 from attendance_etl.devices.zkteco_device import ZKTecoDevice
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -47,23 +48,23 @@ def imports_zk_sdk(path):
     return False
 
 
-class DeviceClientTests(unittest.TestCase):
-    def test_device_client_module_has_no_vendor_sdk_dependency(self):
-        import attendance_etl.devices.device_client as device_client_module
+class BiometricDeviceTests(unittest.TestCase):
+    def test_biometric_device_module_has_no_vendor_sdk_dependency(self):
+        import attendance_etl.devices.biometric_device as biometric_device_module
 
-        module_globals = vars(device_client_module)
+        module_globals = vars(biometric_device_module)
 
         self.assertNotIn("zk", module_globals)
 
-    def test_device_client_exposes_minimal_audited_contract(self):
+    def test_biometric_device_exposes_minimal_audited_contract(self):
         public_methods = {
-            name for name, value in vars(DeviceClient).items() if callable(value) and not name.startswith("_")
+            name for name, value in vars(BiometricDevice).items() if callable(value) and not name.startswith("_")
         }
 
         self.assertEqual(public_methods, {"pull_records", "clear_records"})
 
-        pull_records_signature = inspect.signature(DeviceClient.pull_records)
-        clear_records_signature = inspect.signature(DeviceClient.clear_records)
+        pull_records_signature = inspect.signature(BiometricDevice.pull_records)
+        clear_records_signature = inspect.signature(BiometricDevice.clear_records)
         self.assertEqual(list(pull_records_signature.parameters), ["self"])
         self.assertEqual(
             pull_records_signature.return_annotation,
@@ -72,10 +73,10 @@ class DeviceClientTests(unittest.TestCase):
         self.assertEqual(list(clear_records_signature.parameters), ["self"])
         self.assertIs(clear_records_signature.return_annotation, None)
 
-    def test_device_client_can_type_non_zkteco_implementation(self):
+    def test_biometric_device_can_type_non_zkteco_implementation(self):
         device = GenericDevice()
 
-        typed_device: DeviceClient = device
+        typed_device: BiometricDevice = device
         users, records = typed_device.pull_records()
         typed_device.clear_records()
 
@@ -83,13 +84,18 @@ class DeviceClientTests(unittest.TestCase):
         self.assertEqual(records, ["record-1"])
         self.assertTrue(device.cleared)
 
-    def test_zkteco_device_satisfies_device_client(self):
-        device = ZKTecoDevice("192.0.2.10", 4370)
+    def test_zkteco_device_satisfies_biometric_device(self):
+        device = ZKTecoDevice(
+            ZKTecoOptions(
+                ip_address="192.0.2.10",
+                comm_port=4370,
+            )
+        )
 
-        typed_device: DeviceClient = device
+        typed_device: BiometricDevice = device
 
         self.assertIs(typed_device, device)
-        self.assertIsInstance(device, DeviceClient)
+        self.assertIsInstance(device, BiometricDevice)
 
     def test_zkteco_device_public_adapter_api_is_minimal(self):
         public_methods = {
@@ -115,7 +121,10 @@ class DeviceClientTests(unittest.TestCase):
         self.assertNotIn("attendance_etl.device.zkteco", imported)
         self.assertNotIn("attendance_etl.devices.base", imported)
         self.assertNotIn("attendance_etl.devices.zkteco", imported)
+        old_device_module = "attendance_etl.devices.{}".format("device_client")
+        self.assertNotIn(old_device_module, imported)
         self.assertIn("attendance_etl.devices.zkteco_device", imported)
+        self.assertIn("attendance_etl.devices.biometric_device", imported)
 
     def test_zkteco_sdk_import_isolated_to_zkteco_device_module(self):
         sdk_import_paths = {

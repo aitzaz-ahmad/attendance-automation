@@ -37,7 +37,7 @@ Raspberry Pi 4 entry point remains available as `src/pi4/pi4_client.py` and dele
 - Purpose: collect device users and attendance punches from the biometric source.
 - Current implementation: `attendance_etl.device.zkteco.pull_records_from_device()` connects to the ZKTeco
   device, disables it during reads, fetches users and attendance records, then re-enables and disconnects.
-- Input: configured device IP, communication port, and device identifier.
+- Input: configured `site_id`, device vendor, and vendor-specific connection options.
 - Output: raw user records and raw attendance records from the device library.
 - Limitation: the current extraction path is ZKTeco-specific and still tied to the device-oriented ingestion
   workflow.
@@ -51,8 +51,8 @@ Python dictionaries used by the current storage workflow.
 - Current implementation: `filter_records()`, `convert_to_map()`, `convert_to_dict()`, and
   `decode_zk_format()` in `attendance_etl.transform.zkteco_records`.
 - Input: raw device users, raw attendance records, review start timestamp, optional review end timestamp, and
-  configured device identifier.
-- Output: transitional records with timestamp, employee display name, device identifier, and entry type.
+  configured `site_id`.
+- Output: transitional records with timestamp, employee display name, source `site_id`, and entry type.
 - Limitation: this stage produces the current storage payload shape, not the full canonical attendance event
   contract.
 
@@ -105,7 +105,7 @@ The current persistence path is Google Sheets attendance review output.
 - Purpose: store raw attendance records and update reviewer-facing daily and weekly attendance worksheets.
 - Current implementation: `store_attendance_records()`, `update_daily_attendance()`, and
   `update_weekly_summary()` in `src/attendance_etl/functions/store_attend_records.py`.
-- Input: attendance record payloads, review sheet ID, device identifier, and review start date.
+- Input: attendance record payloads, review sheet ID, `site_id`, and review start date.
 - Output: appended raw-data rows, updated daily attendance rows, updated weekly summary rows, and a
   last-stored timestamp response.
 - Limitation: Google Sheets is the current implemented persistence and review surface. PostgreSQL appears only
