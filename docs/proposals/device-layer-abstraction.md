@@ -138,6 +138,12 @@ are extracted. It is deployment/domain metadata, independent of the biometric
 device vendor and communication mechanism, and may later be propagated into
 canonical attendance records as source-site metadata.
 
+`site_id` also defines the runtime identity of a commissioned `BiometricDevice`.
+Every `BiometricDevice` instance represents a biometric terminal deployed at a
+known office site and exposes this value through a read-only `site_id` property.
+The value originates from `BiometricDeviceConfig` and is passed into the
+concrete device by `BiometricDeviceFactory` during construction.
+
 `vendor` selects the biometric device implementation.
 
 `device_options` contains vendor-specific connection metadata.
@@ -246,6 +252,7 @@ Forbidden dependencies:
 The device layer owns:
 
 - device connection lifecycle
+- read-only commissioned device identity
 - extraction
 - device communication
 - attendance record clearing
@@ -269,6 +276,7 @@ BiometricDevice is responsible for:
 
 - connecting to devices
 - disconnecting from devices
+- exposing read-only `site_id` for the commissioned terminal
 - extracting users
 - extracting attendance records
 - clearing attendance records
@@ -293,7 +301,9 @@ The interface should remain focused on device access.
 
 It should not own transformation responsibilities.
 
-Exact method signatures are intentionally left flexible and should be derived from the current SDK integration during ETLP-25.
+`extract_attendance_records(...)` must not accept `site_id` as a parameter.
+Callers already hold a commissioned `BiometricDevice`, and the device owns the
+site identity needed for existing transitional payload decoding.
 
 ## BiometricDeviceFactory Contract
 
@@ -305,6 +315,7 @@ BiometricDeviceFactory acts as the composition boundary.
 - wire required dependencies
 - hide concrete biometric device construction from runtime code
 - consume BiometricDeviceConfig
+- pass `BiometricDeviceConfig.site_id` into commissioned device instances
 
 ### Non-Responsibilities
 
@@ -415,10 +426,14 @@ Move extraction responsibilities behind the device boundary.
 
 - Device extraction logic moved into ZKTecoDevice
 - Runtime orchestration simplified
+- `site_id` owned by the commissioned BiometricDevice instance
 
 ### Acceptance Criteria
 
 - Runtime and workflow no longer contain device-specific extraction logic
+- Workflow calls `extract_attendance_records(...)` without passing `site_id`
+- BiometricDevice exposes read-only `site_id`
+- BiometricDeviceFactory passes `BiometricDeviceConfig.site_id` into concrete devices
 - Extraction behaviour remains unchanged
 - Existing tests continue to pass
 
@@ -451,6 +466,7 @@ Milestone 3 is considered complete when:
 - Extraction logic resides within the device layer
 - BiometricDeviceConfig contains root `site_id`, `vendor`, and `device_options`
 - BiometricDeviceConfig is vendor-neutral at the root level
+- BiometricDevice exposes root `site_id` as read-only commissioned device identity
 - ZKTeco-specific options are isolated in ZKTecoOptions or ZKTecoDevice defaults
 - Existing runtime behaviour remains unchanged
 

@@ -81,7 +81,9 @@ toward more explicit ingestion boundaries.
 
 The Raspberry Pi ingestion client is split into focused package modules:
 
-- `attendance_etl.devices.biometric_device` owns the runtime-facing biometric device abstraction.
+- `attendance_etl.devices.biometric_device` owns the runtime-facing biometric device abstraction. A
+  `BiometricDevice` is a commissioned biometric terminal deployed at a known office site, and every instance
+  exposes its configured `site_id` as read-only runtime identity.
 - `attendance_etl.devices.biometric_device_factory` owns concrete biometric device construction.
 - `attendance_etl.devices.zkteco_device` owns ZKTeco SDK integration, ZKTeco connection lifecycle, device
   reads, attendance clearing, and ZKTeco implementation-level defaults.
@@ -135,6 +137,12 @@ are extracted. It is deployment/domain metadata, independent of the biometric
 device vendor and communication mechanism. It may later be propagated into
 canonical attendance records as source-site metadata.
 
+`BiometricDeviceConfig.site_id` is the source of the commissioned device runtime
+identity. `BiometricDeviceFactory` passes this value into concrete
+`BiometricDevice` instances during construction. Because a `BiometricDevice`
+already owns its site identity, runtime callers must not pass `site_id` into
+`extract_attendance_records(...)`.
+
 `vendor` selects the biometric device implementation.
 
 `device_options` contains vendor-specific connection metadata.
@@ -174,7 +182,8 @@ The ownership boundaries are:
 - `VendorOptions`: vendor-specific configuration abstraction.
 - `ZKTecoOptions`: ZKTeco-specific connection options.
 - `BiometricDeviceFactory`: concrete `BiometricDevice` construction from a
-  validated `BiometricDeviceConfig`.
+  validated `BiometricDeviceConfig`, including passing root `site_id` into the
+  commissioned device instance.
 - `ZKTecoDevice`: pyzk integration, device communication, extraction, clearing,
   and ZKTeco-specific implementation defaults.
 

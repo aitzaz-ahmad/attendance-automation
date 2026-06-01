@@ -23,7 +23,8 @@ The project uses the term:
 
     BiometricDevice
 
-for the runtime-facing abstraction.
+for the runtime-facing abstraction. A `BiometricDevice` represents a
+commissioned biometric terminal deployed at a known office site.
 
 Concrete implementations represent vendor-specific biometric devices.
 
@@ -51,6 +52,7 @@ Concrete biometric device implementations live alongside the abstraction in the 
 This specification covers:
 
 - the runtime-facing biometric device abstraction
+- commissioned device runtime identity
 - biometric device access responsibilities
 - dependency rules for biometric devices
 - audit requirements before finalising the interface
@@ -91,6 +93,10 @@ The audit result should determine the minimal public interface.
 
 Only operations required by current runtime behaviour should appear on the abstraction.
 
+Every `BiometricDevice` instance owns read-only `site_id` runtime identity. The
+value originates from `BiometricDeviceConfig.site_id` and is provided during
+construction by the composition boundary.
+
 ## Non-Responsibilities
 
 `BiometricDevice` does not own:
@@ -130,10 +136,15 @@ The interface should remain minimal.
 
 The current audited interface is:
 
+- `site_id`
+- `extract_attendance_records(from_date, to_date=None)`
 - `pull_records()`
 - `clear_records()`
 
 Additional methods require justification through demonstrated runtime usage.
+
+`extract_attendance_records(...)` must not accept `site_id` as a parameter. The
+device already owns the site identity for the commissioned terminal.
 
 ## Raw Data Boundary
 
@@ -149,6 +160,7 @@ Tests should verify:
 
 - the abstraction exists
 - the abstraction can be imported without vendor SDK dependencies
+- the abstraction exposes read-only `site_id`
 - runtime-facing code can type against the abstraction
 - no concrete biometric device implementation is required to import the abstraction
 - the abstraction does not introduce transformation responsibilities
@@ -189,6 +201,7 @@ The abstraction is complete when:
 
 - `BiometricDevice` exists
 - the interface is minimal
+- `site_id` is read-only runtime identity provided at construction time
 - each method is justified by current usage
 - the abstraction is free of vendor SDK imports
 - transformation concerns are excluded
