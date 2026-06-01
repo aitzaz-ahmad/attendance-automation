@@ -71,9 +71,9 @@ class BiometricDeviceFactoryTests(unittest.TestCase):
         device = BiometricDeviceFactory.create(self.zkteco_config())
 
         self.assertIsInstance(device, ZKTecoDevice)
+        self.assertEqual(device.site_id, "munich-office")
         self.assertEqual(device.device_ip, "192.0.2.10")
         self.assertEqual(device.comm_port, 4370)
-        self.assertFalse(hasattr(device, "site_id"))
         self.assertFalse(hasattr(device, "identifier"))
 
     def test_unsupported_vendor_fails_clearly(self):

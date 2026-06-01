@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, cast
 
 from attendance_etl import config
+from attendance_etl.devices.biometric_device import BiometricDevice
 from attendance_etl.logging_utils import get_logger
 from attendance_etl.models import ReviewPeriod, RuntimeState
 from attendance_etl.pi4.state import (
@@ -20,13 +21,12 @@ from attendance_etl.pi4.state import (
 )
 from attendance_etl.storage.review_period import save_review_period
 from attendance_etl.storage.snapshot import save_snapshot
-from attendance_etl.transform.zkteco_records import convert_to_map, decode_zk_format, filter_records
 
 logger = get_logger("Pi4Workflow")
 
 
 class Pi4Workflow:
-    def __init__(self, state, device, messenger):
+    def __init__(self, state, device: BiometricDevice, messenger):
         self.state = state
         self.device = device
         self.messenger = messenger
@@ -54,29 +54,6 @@ class Pi4Workflow:
     def review_period_info(self):
         return cast(Dict[str, Any], self.state.review_period_info)
 
-    def get_attendance_records(self, from_date, to_date=None):
-        """
-        pulls all attendance records from the biometric device, filters out the
-        records based on the from_date and to_date time frame, and decodes the
-        filtered records from the zkteco format before returning them
-        """
-        logger.debug("get_attendance_records invoked")
-
-        device_info = self.device_info()
-        site_id = device_info["site_id"]
-        logger.info("fetching data from site %s", site_id)
-        users, records = self.device.pull_records()
-        logger.info("filtering attendance records since %s", from_date.strftime("%d-%m-%Y %H:%M:%S"))
-        unsaved_records = filter_records(records, from_date, to_date)
-        logger.info("%s unsaved attendance records found", len(unsaved_records))
-        user_mapping = convert_to_map(users)
-        logger.debug("decoding unsaved records from zkteco format...")
-        decoded_records = decode_zk_format(unsaved_records, user_mapping, site_id)
-
-        logger.info("%s attendance records decoded", len(decoded_records))
-
-        return decoded_records
-
     def review_period_expired(self):
         """
         returns True if the date of the system clock is greater than
@@ -93,7 +70,7 @@ class Pi4Workflow:
     def wait_duration_before_next_pull(self):
         """
         returns the time duration to wait for before attempting to pull
-        the attendance records (from the zkteco device) the next time
+        the attendance records from the biometric device the next time
         """
         review_period_info = self.review_period_info()
         now = datetime.today()
@@ -232,8 +209,7 @@ class Pi4Workflow:
         """
         executes the logic for handling the RELAY_ATTENDANCE_RECORDS state
         """
-        # wait for wait_duration before attempting to pull the attendance records
-        # from the zkteco biometric device
+        # make an attempt to pull the attendance records from the biometric device after wait_duration
         wait_duration = self.wait_duration_before_next_pull()
         time.sleep(wait_duration.total_seconds())
 
@@ -247,7 +223,7 @@ class Pi4Workflow:
             from_timestamp = datetime.strptime(self.state.last_stored_timestamp, "%d-%m-%Y %H:%M:%S")
         else:
             from_timestamp = datetime.strptime(review_period_info["start_date"], "%m/%d/%Y")
-        new_records = self.get_attendance_records(from_timestamp)
+        new_records = self.device.extract_attendance_records(from_timestamp)
 
         if len(new_records) > 0:
             # new (unsaved) attendance records are available on the device since
@@ -272,8 +248,7 @@ class Pi4Workflow:
         self.state.last_stored_timestamp = last_stored_record["timestamp"]
 
         if self.review_period_expired():
-            # proceed with the clean up and maintenance because the review period
-            # has expired
+            # proceed with the clean up and maintenance because the review period has expired
             next_state = REVIEW_PERIOD_EXPIRED
         else:
             next_state = RELAY_ATTENDANCE_RECORDS
@@ -286,14 +261,13 @@ class Pi4Workflow:
         """
         review_period_info = self.review_period_info()
 
-        # check for any unsaved attendance records before attempting to delete
-        # data from the zkteco biometric device
+        # check for any unsaved attendance records before attempting to delete data from the biometric device
         if self.state.last_stored_timestamp is not None:
             from_timestamp = datetime.strptime(self.state.last_stored_timestamp, "%d-%m-%Y %H:%M:%S")
         else:
             from_timestamp = datetime.strptime(review_period_info["start_date"], "%m/%d/%Y")
 
-        new_records = self.get_attendance_records(from_timestamp)
+        new_records = self.device.extract_attendance_records(from_timestamp)
         if len(new_records) == 0:
             # there are no unsaved attendance records on the biometric device,
             # therefore, it is safe to delete all attendance data from the device

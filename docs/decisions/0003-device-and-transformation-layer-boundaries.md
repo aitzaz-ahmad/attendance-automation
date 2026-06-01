@@ -137,6 +137,17 @@ are extracted.
 device vendor and communication mechanism, and it may later be propagated into
 canonical attendance records as source-site metadata.
 
+Every `BiometricDevice` instance represents a commissioned biometric terminal
+deployed at a known office site. `BiometricDeviceConfig.site_id` is the source of
+that runtime identity. Concrete biometric devices shall receive `site_id` during
+construction and expose it through the read-only `BiometricDevice.site_id`
+property.
+
+Because a commissioned `BiometricDevice` already owns its site identity,
+`extract_attendance_records(...)` shall not require `site_id` as a parameter.
+Concrete device implementations shall use their own `site_id` when decoding or
+emitting existing transitional attendance dictionaries.
+
 `vendor` selects the biometric device implementation.
 
 `device_options` contains vendor-specific connection metadata.
@@ -220,6 +231,9 @@ The factory consumes validated `BiometricDeviceConfig` and returns the
 
 It does not read JSON configuration files and it does not own configuration
 validation.
+
+The factory is responsible for passing `BiometricDeviceConfig.site_id` into the
+concrete commissioned device instance it constructs.
 
 ## Decision 5: Device Access And Data Transformation Are Separate Concerns
 
@@ -339,6 +353,7 @@ should require modification.
 | Runtime imports vendor SDKs directly | Leaks low-level implementation details into high-level policy code and increases coupling to vendor-specific dependencies. |
 | ZKTeco fields on `BiometricDeviceConfig` | Leaks vendor-specific connection details into the root runtime configuration contract. |
 | `site_id` inside `VendorOptions` or `ZKTecoOptions` | Couples deployment/domain metadata to vendor-specific connection configuration. |
+| Passing `site_id` into `extract_attendance_records(...)` | Treats commissioned device identity as per-call input even though the device instance already owns that runtime identity. |
 | `BiometricDeviceFactory` reads JSON directly | Mixes file loading, validation, and concrete object construction in one boundary. |
 
 ## References

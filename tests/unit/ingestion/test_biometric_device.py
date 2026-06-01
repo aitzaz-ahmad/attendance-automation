@@ -1,19 +1,22 @@
 import ast
 import inspect
 import unittest
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Sequence, Tuple
+from typing import Any, Mapping, Optional, Sequence, Tuple
 
 from attendance_etl.devices.biometric_device import BiometricDevice
-from attendance_etl.devices.biometric_device_config import ZKTecoOptions
-from attendance_etl.devices.zkteco_device import ZKTecoDevice
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
-class GenericDevice:
-    def __init__(self):
+class DummyBiometricDevice(BiometricDevice):
+    def __init__(self, site_id="munich-office"):
+        super().__init__(site_id)
         self.cleared = False
+
+    def extract_attendance_records(self, from_date, to_date=None):
+        return [{"device": self.site_id, "timestamp": from_date, "to_date": to_date}]
 
     def pull_records(self):
         return ["user-1"], ["record-1"]
@@ -61,10 +64,22 @@ class BiometricDeviceTests(unittest.TestCase):
             name for name, value in vars(BiometricDevice).items() if callable(value) and not name.startswith("_")
         }
 
-        self.assertEqual(public_methods, {"pull_records", "clear_records"})
+        self.assertEqual(public_methods, {"extract_attendance_records", "pull_records", "clear_records"})
 
+        extract_signature = inspect.signature(BiometricDevice.extract_attendance_records)
         pull_records_signature = inspect.signature(BiometricDevice.pull_records)
         clear_records_signature = inspect.signature(BiometricDevice.clear_records)
+        self.assertEqual(
+            list(extract_signature.parameters),
+            ["self", "from_date", "to_date"],
+        )
+        self.assertEqual(extract_signature.parameters["from_date"].annotation, datetime)
+        self.assertEqual(extract_signature.parameters["to_date"].annotation, Optional[datetime])
+        self.assertIsNone(extract_signature.parameters["to_date"].default)
+        self.assertEqual(
+            extract_signature.return_annotation,
+            Sequence[Mapping[str, Any]],
+        )
         self.assertEqual(list(pull_records_signature.parameters), ["self"])
         self.assertEqual(
             pull_records_signature.return_annotation,
@@ -73,40 +88,32 @@ class BiometricDeviceTests(unittest.TestCase):
         self.assertEqual(list(clear_records_signature.parameters), ["self"])
         self.assertIs(clear_records_signature.return_annotation, None)
 
+    def test_biometric_device_site_id_is_constructor_injected_and_read_only(self):
+        device = DummyBiometricDevice("berlin-office")
+
+        self.assertEqual(device.site_id, "berlin-office")
+        with self.assertRaises(AttributeError):
+            device.site_id = "munich-office"
+
+    def test_biometric_device_rejects_invalid_site_id(self):
+        with self.assertRaisesRegex(ValueError, "^site_id must be a non-empty string$"):
+            DummyBiometricDevice("")
+
     def test_biometric_device_can_type_non_zkteco_implementation(self):
-        device = GenericDevice()
+        device = DummyBiometricDevice()
 
         typed_device: BiometricDevice = device
+        extracted_records = typed_device.extract_attendance_records(datetime(2026, 5, 27, 8, 0, 0))
         users, records = typed_device.pull_records()
         typed_device.clear_records()
 
+        self.assertEqual(
+            extracted_records,
+            [{"device": "munich-office", "timestamp": datetime(2026, 5, 27, 8, 0, 0), "to_date": None}],
+        )
         self.assertEqual(users, ["user-1"])
         self.assertEqual(records, ["record-1"])
         self.assertTrue(device.cleared)
-
-    def test_zkteco_device_satisfies_biometric_device(self):
-        device = ZKTecoDevice(
-            ZKTecoOptions(
-                ip_address="192.0.2.10",
-                comm_port=4370,
-            )
-        )
-
-        typed_device: BiometricDevice = device
-
-        self.assertIs(typed_device, device)
-        self.assertIsInstance(device, BiometricDevice)
-
-    def test_zkteco_device_public_adapter_api_is_minimal(self):
-        public_methods = {
-            name for name, value in vars(ZKTecoDevice).items() if callable(value) and not name.startswith("_")
-        }
-
-        self.assertEqual(public_methods, {"pull_records", "clear_records"})
-        self.assertEqual(list(inspect.signature(ZKTecoDevice.pull_records).parameters), ["self"])
-        self.assertEqual(list(inspect.signature(ZKTecoDevice.clear_records).parameters), ["self"])
-        self.assertFalse(hasattr(ZKTecoDevice, "connect"))
-        self.assertFalse(hasattr(ZKTecoDevice, "disconnect"))
 
     def test_runtime_and_tests_do_not_import_old_device_paths(self):
         paths = [REPO_ROOT / "src/attendance_etl/pi4/runtime.py"]

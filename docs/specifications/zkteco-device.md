@@ -13,6 +13,8 @@ This specification exists to ensure that ZKTeco-specific SDK interaction remains
 The project uses the term BiometricDevice for the runtime-facing abstraction and concrete biometric device names for vendor-specific implementations.
 
 Therefore, ZKTecoDevice represents the concrete implementation while BiometricDevice remains the abstraction consumed by higher-level orchestration code.
+As a BiometricDevice, each ZKTecoDevice instance represents a commissioned
+terminal deployed at a known office site.
 
 ## Related Documents
 
@@ -97,6 +99,7 @@ Concrete device implementations satisfy that contract.
 ZKTecoDevice owns:
 
 - ZKTeco SDK imports
+- read-only commissioned device `site_id` inherited from BiometricDevice
 - device connection lifecycle
 - device communication
 - ZKTeco-specific connection defaults
@@ -144,6 +147,12 @@ They must not live in global ingestion-client configuration.
 deployment/domain metadata identifying the office, site, or location from which
 attendance records are extracted. It is independent of the ZKTeco communication
 mechanism.
+
+`BiometricDeviceFactory` passes `BiometricDeviceConfig.site_id` into
+`ZKTecoDevice` construction. `ZKTecoDevice` inherits the read-only `site_id`
+property from `BiometricDevice` and uses that identity when decoding extracted
+attendance records. Its public `extract_attendance_records(...)` method must
+not require `site_id` as a parameter.
 
 The ZKTeco-specific options are:
 
@@ -224,6 +233,7 @@ This improves encapsulation and keeps device-specific behaviour local to the con
 ETLP-26 tests should verify:
 
 - ZKTecoDevice satisfies BiometricDevice
+- ZKTecoDevice inherits read-only site_id from BiometricDevice
 - SDK interaction remains isolated
 - existing extraction behaviour remains unchanged
 - existing record-clearing behaviour remains unchanged
@@ -280,6 +290,7 @@ Those concerns belong to later issues.
 ETLP-26 is complete when:
 
 - ZKTecoDevice conforms to BiometricDevice
+- ZKTecoDevice receives site_id at construction and inherits the site_id property
 - `BiometricDevice` lives in `attendance_etl.devices.biometric_device`
 - `ZKTecoDevice` lives in `attendance_etl.devices.zkteco_device`
 - no new code imports from the old `attendance_etl.device.base` path

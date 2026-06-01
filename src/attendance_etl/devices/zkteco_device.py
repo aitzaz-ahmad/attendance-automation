@@ -1,9 +1,12 @@
-from typing import Any, Sequence, Tuple
+from datetime import datetime
+from typing import Any, Mapping, Optional, Sequence, Tuple
 
 from zk import ZK
 
+from attendance_etl.devices.biometric_device import BiometricDevice
 from attendance_etl.devices.biometric_device_config import ZKTecoOptions
 from attendance_etl.logging_utils import get_logger
+from attendance_etl.transform.zkteco_records import convert_to_map, decode_zk_format, filter_records
 
 logger = get_logger("ZKTecoDevice")
 
@@ -12,8 +15,9 @@ DEFAULT_FORCE_UDP = False
 DEFAULT_OMMIT_PING = False
 
 
-class ZKTecoDevice:
-    def __init__(self, options: ZKTecoOptions):
+class ZKTecoDevice(BiometricDevice):
+    def __init__(self, site_id: str, options: ZKTecoOptions):
+        super().__init__(site_id)
         self.device_ip = options.ip_address
         self.comm_port = options.comm_port
         self.timeout = DEFAULT_TIMEOUT if options.timeout is None else options.timeout
@@ -22,6 +26,25 @@ class ZKTecoDevice:
 
     def clear_records(self) -> None:
         self._clear_records_from_device()
+
+    def extract_attendance_records(
+        self,
+        from_date: datetime,
+        to_date: Optional[datetime] = None,
+    ) -> Sequence[Mapping[str, Any]]:
+        logger.debug("extract_attendance_records invoked")
+        logger.info("fetching data from site %s", self.site_id)
+        users, records = self.pull_records()
+        logger.info("filtering attendance records since %s", from_date.strftime("%d-%m-%Y %H:%M:%S"))
+        unsaved_records = filter_records(records, from_date, to_date)
+        logger.info("%s unsaved attendance records found", len(unsaved_records))
+        user_mapping = convert_to_map(users)
+        logger.debug("decoding unsaved records from zkteco format...")
+        decoded_records = decode_zk_format(unsaved_records, user_mapping, self.site_id)
+
+        logger.info("%s attendance records decoded", len(decoded_records))
+
+        return decoded_records
 
     def pull_records(self) -> Tuple[Sequence[Any], Sequence[Any]]:
         return self._pull_records_from_device()
@@ -66,11 +89,10 @@ class ZKTecoDevice:
         the attendance records stored on the machine
         """
         conn = None
+        users = []
+        records = []
         zk = self._zk_client()
         try:
-            users = []
-            records = []
-
             logger.info("Connecting to device ...")
             conn = zk.connect()
             logger.info("Disabling device ...")
@@ -90,4 +112,4 @@ class ZKTecoDevice:
             if conn:
                 conn.disconnect()
 
-            return users, records
+        return users, records

@@ -86,6 +86,7 @@ BiometricDeviceFactory owns:
 
 - selecting the concrete biometric device implementation
 - constructing concrete biometric device instances
+- passing root `BiometricDeviceConfig.site_id` into commissioned device instances
 - returning instances as BiometricDevice
 
 BiometricDeviceFactory does not own:
@@ -131,6 +132,10 @@ The factory consumes a validated `BiometricDeviceConfig`.
 `site_id` identifies the office, site, or location from which attendance records
 are extracted. It is deployment/domain metadata and does not belong inside
 `VendorOptions` or `ZKTecoOptions`.
+
+The factory passes `BiometricDeviceConfig.site_id` into the concrete
+`BiometricDevice` during construction. The constructed device then exposes
+`site_id` as read-only runtime identity.
 
 `vendor` selects the biometric device implementation.
 
@@ -203,6 +208,9 @@ The factory should return the abstraction rather than a concrete implementation 
 The exact constructor parameters should be derived from the validated
 `BiometricDeviceConfig` and its `device_options`.
 
+For ZKTeco, the factory passes root `site_id` separately from `ZKTecoOptions`.
+`site_id` must not be folded into vendor options.
+
 The factory should remain simple and explicit.
 
 Do not introduce additional abstraction layers.
@@ -251,6 +259,7 @@ ETLP-27 tests should verify:
 - unsupported vendor selections fail clearly
 - runtime no longer imports or constructs ZKTecoDevice directly
 - factory consumes BiometricDeviceConfig rather than raw ZKTeco fields
+- factory passes BiometricDeviceConfig.site_id into the returned BiometricDevice
 - configuration loading and validation are tested outside the factory boundary
 - site_id remains root-level BiometricDeviceConfig metadata and is not passed as
   a ZKTeco connection option
@@ -342,6 +351,7 @@ ETLP-27 is complete when:
 - unsupported vendors fail clearly
 - root biometric device configuration remains vendor-neutral
 - site_id remains root-level deployment/domain metadata
+- constructed BiometricDevice instances expose read-only site_id
 - ZKTeco-specific options do not live in global ingestion-client configuration
 - configuration loading is separate from concrete device construction
 - existing runtime behaviour remains unchanged
