@@ -59,21 +59,20 @@ Dependencies shall point downward only.
         ↓
     IngestionWorkflow
         ↓
-    BiometricDevice
+    --------------------------------
         ↓
-    TransformationStrategy
-        ↓
-    Domain Models
+    BiometricDevice        TransformationStrategy
+        ↓                          ↓
+    ZKTecoDevice           ZKTecoTransformationStrategy
+        ↓                          ↓
+    ZKTeco SDK             ZKTeco Record Types
 
     --------------------------------
 
-    ZKTecoDevice
-        ↓
-    ZKTeco SDK
-
-    ZKTecoTransformationStrategy
-        ↓
-    ZKTeco Record Types
+    AttendanceEvent
+    Employee
+    RuntimeState
+    ReviewPeriod
 
 ## Decision 1: Runtime Depends Only On Stable Project-Owned Abstractions
 
@@ -248,36 +247,42 @@ Device access and data transformation shall remain separate responsibilities.
 
 ### Transformation Owns
 
-- canonicalisation
-- validation
 - normalisation
-- model construction
+- validation
+- canonicalisation
+- filtering
+- construction of canonical AttendanceEvent objects
 
-## Decision 6: Biometric Devices Depend On Transformation Strategy Abstractions
+## Decision 6: Runtime Orchestration Coordinates Device Access And Transformation
 
 ### Decision
 
-Biometric devices shall depend on TransformationStrategy abstractions rather than concrete transformation implementations.
+Runtime orchestration is responsible for coordinating device access and transformation.
 
-Transformation strategies shall be injected through constructors.
+The workflow obtains raw data from a `BiometricDevice` and supplies that data to a `TransformationStrategy`.
 
 Example:
 
-    BiometricDevice
+    IngestionWorkflow
+        -> BiometricDevice
         -> TransformationStrategy
 
 not:
 
     BiometricDevice
-        -> ConcreteTransformationStrategy
+        -> TransformationStrategy
 
 ### Rationale
 
-This preserves loose coupling between device access and data transformation.
+Device access and data transformation are independent concerns.
 
-The factory remains responsible for wiring concrete implementations together.
+A biometric device is responsible for extracting raw data.
 
-## Decision 7: Existing User Mapping Is An Implementation Optimisation
+A transformation strategy is responsible for interpreting and converting that data into canonical attendance events.
+
+Keeping both abstractions as siblings coordinated by runtime orchestration preserves separation of concerns and avoids coupling device implementations to transformation implementations.
+
+## Decision 7: User Mapping Is Removed By The Transformation Layer
 
 ### Context
 
@@ -289,23 +294,32 @@ This structure was introduced deliberately.
 
 Attendance records contain employee identifiers.
 
-Backend payloads require employee names.
+Backend payloads required employee names.
 
 The lookup structure provided O(1) enrichment and avoided repeated scans of user collections.
 
 ### Decision
 
-The structure is not an architectural contract.
+The lookup structure is no longer required as an architectural or implementation-level contract.
 
-Milestone 4 should attempt to eliminate it.
+Milestone 4 shall remove the shared user-mapping logic.
 
-If efficient correlation still requires a lookup structure, it may remain as a private implementation detail inside a concrete transformation strategy.
+Employee correlation shall be owned by transformation normalisation.
 
-It shall not become:
+Concrete transformation strategies may use local lookup structures internally while normalising raw vendor data, but such structures must remain private implementation details and must not survive beyond the normalisation step.
 
-- a shared runtime contract
-- a workflow dependency
-- a public abstraction
+The runtime and workflow layers shall not maintain or pass around a shared user mapping.
+
+The transformation layer shall produce `NormalisedAttendance` objects that compose `Employee` directly.
+
+### Acceptance Requirement
+
+Milestone 4 is not complete while workflow-level or shared transformation APIs still expose:
+
+- `user_mapping`
+- `user_id -> employee_name`
+- `Dict[user_id, employee_name]`
+- equivalent shared employee-name lookup structures
 
 ## Decision 8: Runtime Must Remain Device-Agnostic
 
@@ -325,6 +339,74 @@ Only:
 
 should require modification.
 
+## Decision 9: Transformation Strategy Template Method
+
+### Decision
+
+The transformation layer shall use a Template Method design.
+
+`TransformationStrategy.transform(...)` defines the complete transformation pipeline.
+
+The pipeline order is:
+
+    normalise
+        ↓
+    validate
+        ↓
+    canonicalise
+        ↓
+    filter
+
+Concrete strategies are responsible for vendor-specific normalisation.
+
+Validation, canonicalisation, and filtering should remain default base-class behaviour unless a concrete strategy has a justified design reason to override them.
+
+### Normalised Models
+
+The transformation layer shall introduce the following vendor-neutral intermediate model:
+
+    Employee
+        id: str
+        name: str
+
+and:
+
+    NormalisedAttendance
+        employee: Employee
+        punch: EventType
+        timestamp: datetime
+
+`NormalisedAttendance` is an internal transformation-layer model.
+
+It must not cross the transformation boundary.
+
+### Canonical Output
+
+The transformation layer produces canonical `AttendanceEvent` objects.
+
+`AttendanceEvent` shall compose an `Employee` rather than duplicating employee attributes as flattened fields.
+
+`AttendanceEvent` is the only attendance model that crosses the transformation boundary.
+
+Canonical attendance events shall include:
+
+- `site_id`
+- `employee`
+- `event_type`
+- `timestamp`
+
+### Rationale
+
+The Template Method establishes a consistent transformation pipeline while allowing vendor-specific data interpretation to remain isolated within concrete strategies.
+
+Normalisation converts vendor-specific raw employee and attendance streams into a vendor-neutral representation.
+
+Validation operates on a single normalised stream.
+
+Canonicalisation converts validated normalised attendance into project-owned attendance events.
+
+Filtering operates on canonical attendance events rather than vendor SDK record types.
+
 ## Consequences
 
 ### Positive
@@ -334,6 +416,8 @@ should require modification.
 - Device SDK isolation.
 - Easier testing.
 - Simpler multi-device support.
+- Device extraction and transformation remain independently replaceable.
+- Shared user-mapping logic is removed from runtime and workflow boundaries.
 
 ### Negative
 
@@ -348,7 +432,7 @@ should require modification.
 | Runtime depends directly on concrete biometric device implementations | Violates dependency inversion and requires orchestration changes when new devices are introduced. |
 | Transformation logic inside runtime | Mixes orchestration concerns with data interpretation and canonicalisation. |
 | Transformation logic inside workflow | Couples workflow coordination to device-specific data semantics. |
-| Shared user_mapping contract | Treats an implementation optimisation as a public architectural boundary. |
+| Shared user_mapping contract | Superseded by transformation normalisation producing `NormalisedAttendance` with composed `Employee`; retaining it would preserve a legacy lookup as an architectural boundary. |
 | BiometricDevice directly constructs its transformation strategy | Introduces tight coupling between device access and transformation implementations and makes testing more difficult. |
 | Runtime imports vendor SDKs directly | Leaks low-level implementation details into high-level policy code and increases coupling to vendor-specific dependencies. |
 | ZKTeco fields on `BiometricDeviceConfig` | Leaks vendor-specific connection details into the root runtime configuration contract. |

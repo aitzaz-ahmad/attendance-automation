@@ -1,0 +1,80 @@
+@startuml Transformation_Strategy
+
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam classFontStyle bold
+skinparam stereotypeCBackgroundColor<<Abstract>> LightYellow
+skinparam stereotypeCBackgroundColor<<DataClass>> LightCyan
+
+package "Transformation Layer" {
+    abstract class TransformationStrategy <<Abstract>> {
+        + transform(request: TransformationRequest) : List[AttendanceEvent]
+        --
+        # {abstract} normalise(raw_data: ExtractedBiometricData) : List[NormalisedAttendance]
+        # validate(attendance: Sequence[NormalisedAttendance]) : None
+        # canonicalise(attendance: Sequence[NormalisedAttendance], site_id: str) : List[AttendanceEvent]
+        # filter(attendance_events: Sequence[AttendanceEvent], time_range: TimeRange) : List[AttendanceEvent]
+    }
+
+    class ZKTecoTransformationStrategy {
+        # normalise(raw_data: ExtractedBiometricData) : List[NormalisedAttendance]
+    }
+
+    class TransformationRequest <<DataClass>> {
+        + raw_data : ExtractedBiometricData
+        + site_id : str
+        + time_range : TimeRange
+    }
+
+    class ExtractedBiometricData <<DataClass>> {
+        + employees : Sequence[Any]
+        + attendance_records : Sequence[Any]
+    }
+
+    class TimeRange <<DataClass>> {
+        + start_time : datetime
+        + end_time : Optional[datetime]
+    }
+
+    class NormalisedAttendance <<DataClass>> {
+        + employee : Employee
+        + punch : EventType
+        + timestamp : datetime
+    }
+}
+
+package "Domain Models" {
+    class Employee <<DataClass>> {
+        + id : str
+        + name : str
+        --
+        + to_dict() : Dict[str, Any]
+    }
+
+    enum EventType {
+        CLOCK_IN
+        CLOCK_OUT
+    }
+
+    class AttendanceEvent <<DataClass>> {
+        + site_id : str
+        + employee : Employee
+        + event_type : EventType
+        + timestamp : datetime
+        --
+        + to_dict() : Dict[str, Any]
+    }
+}
+
+TransformationStrategy <|-- ZKTecoTransformationStrategy
+TransformationRequest --> ExtractedBiometricData
+TransformationRequest --> TimeRange
+TransformationStrategy --> TransformationRequest : consumes
+TransformationStrategy --> NormalisedAttendance : normalises
+TransformationStrategy --> AttendanceEvent : produces
+NormalisedAttendance --> Employee
+NormalisedAttendance --> EventType
+AttendanceEvent --> Employee
+AttendanceEvent --> EventType
+
+@enduml

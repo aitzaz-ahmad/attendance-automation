@@ -29,14 +29,13 @@ Milestone 4 introduces a transformation layer responsible for converting that de
 
 ## Goals
 
-Milestone 4 shall:
-
-- introduce a TransformationStrategy abstraction
+- introduce a dedicated transformation layer
 - establish AttendanceEvent as the canonical attendance model
-- establish Employee as the canonical employee model
-- perform canonicalisation of device-specific data
-- perform validation of transformed data
-- perform normalisation of transformed data
+- establish Employee as a normalised employee model used during transformation
+- perform normalisation of device-specific data
+- perform validation of normalised attendance data
+- perform canonicalisation into AttendanceEvent objects
+- perform filtering of canonical attendance events
 - isolate device-specific interpretation logic from runtime orchestration
 
 The milestone should allow multiple device vendors to coexist while producing identical domain models.
@@ -61,7 +60,7 @@ This proposal implements the transformation boundary defined in ADR-0003.
 In particular:
 
 - device access and transformation remain separate concerns
-- transformation strategies are injected into biometric devices
+- runtime orchestration coordinates biometric devices and transformation strategies
 - runtime remains device-agnostic
 - device-specific optimisation structures are not architectural contracts
 
@@ -74,6 +73,9 @@ The current implementation:
 - performs enrichment
 - performs lookup operations
 - constructs backend payloads
+- performs employee correlation
+- performs attendance filtering
+- performs attendance validation
 
 using device-specific assumptions.
 
@@ -83,31 +85,34 @@ The transformation rules are not isolated behind a dedicated abstraction.
 
 The target architecture after Milestone 4 is:
 
-    BiometricDevice
-        ↓
-    TransformationStrategy
-        ↓
-    Employee
-
-    BiometricDevice
-        ↓
-    TransformationStrategy
-        ↓
-    AttendanceEvent
+    IngestionWorkflow
+            ↓
+     ┌─────────────────┐
+     │ BiometricDevice │
+     └─────────────────┘
+            ↓
+      raw employees
+      raw attendance
+            ↓
+     ┌──────────────────────┐
+     │ Transformation Layer │
+     └──────────────────────┘
+            ↓
+      AttendanceEvent
 
 Concrete example:
 
     ZKTecoDevice
-        ↓
-    ZKTecoTransformationStrategy
-        ↓
-    Employee
-
-    ZKTecoDevice
-        ↓
-    ZKTecoTransformationStrategy
-        ↓
+            ↓
+    raw ZKTeco data
+            ↓
+    Transformation Layer
+            ↓
     AttendanceEvent
+
+Runtime orchestration coordinates extraction and transformation.
+
+The workflow obtains raw employee and attendance data from a biometric device and supplies that data to the transformation layer.
 
 Runtime orchestration should consume only project-owned models.
 
@@ -115,15 +120,21 @@ Runtime orchestration should consume only project-owned models.
 
 Allowed dependencies:
 
-    BiometricDevice
+    Employee
         ↓
-    TransformationStrategy
+    NormalisedAttendance
+        ↓
+    AttendanceEvent
 
-    TransformationStrategy
+    Transformation Layer
         ↓
     Employee
 
-    TransformationStrategy
+    Transformation Layer
+        ↓
+    NormalisedAttendance
+
+    Transformation Layer
         ↓
     AttendanceEvent
 
@@ -145,11 +156,13 @@ Forbidden dependencies:
 
 The transformation layer owns:
 
-- canonicalisation
-- validation
 - normalisation
-- model construction
+- validation
+- canonicalisation
+- filtering
+- construction of canonical AttendanceEvent objects
 - device-specific data interpretation
+- employee correlation
 
 The transformation layer does not own:
 
@@ -159,23 +172,26 @@ The transformation layer does not own:
 - runtime orchestration
 - persistence
 
-## TransformationStrategy Contract
+## Transformation Responsibilities
 
 ### Responsibilities
 
-TransformationStrategy is responsible for:
+The transformation layer is responsible for:
 
 - interpreting device-specific data
+- correlating employees and attendance records
 - constructing Employee models
+- constructing NormalisedAttendance models
+- validating normalised attendance
 - constructing AttendanceEvent models
-- validating transformed data
-- normalising transformed data
+- filtering canonical attendance events
 
 ### Allowed Dependencies
 
 - device-specific record types
 - device-specific user types
 - Employee
+- NormalisedAttendance
 - AttendanceEvent
 
 ### Forbidden Dependencies
@@ -187,19 +203,41 @@ TransformationStrategy is responsible for:
 
 ### Design Notes
 
-TransformationStrategy represents a behavioural abstraction.
-
-The strategy owns interpretation.
+The transformation layer owns interpretation.
 
 The concrete biometric device owns extraction.
 
-## Canonical Employee Model
+The transformation layer receives raw data and produces canonical attendance events.
 
-Employee becomes the canonical employee representation.
+## Normalised Employee Model
 
-The remainder of the application should depend on Employee rather than device-specific user objects.
+Employee becomes the normalised employee representation.
+
+The transformation layer should depend on Employee rather than device-specific user objects.
+
+Employee exists to represent vendor-neutral employee identity during transformation.
 
 Employee construction belongs to the transformation layer.
+
+## NormalisedAttendance Model
+
+NormalisedAttendance is an internal transformation-layer model.
+
+It represents vendor-neutral attendance information before canonicalisation.
+
+NormalisedAttendance is the output of the normalisation stage.
+
+NormalisedAttendance is the input to the validation stage.
+
+NormalisedAttendance is the input to canonicalisation.
+
+Expected responsibilities:
+
+- compose an Employee
+- represent a normalised punch value
+- represent a normalised timestamp
+
+NormalisedAttendance must not cross the transformation boundary.
 
 ## Canonical AttendanceEvent Model
 
@@ -208,6 +246,12 @@ AttendanceEvent becomes the canonical attendance representation.
 The remainder of the application should depend on AttendanceEvent rather than device-specific attendance record types.
 
 AttendanceEvent construction belongs to the transformation layer.
+
+AttendanceEvent shall include site_id as part of the canonical event context.
+
+AttendanceEvent is the only attendance model that crosses the transformation boundary.
+
+AttendanceEvent shall compose Employee rather than duplicating employee attributes as flattened fields.
 
 ## User Mapping Treatment
 
@@ -229,19 +273,19 @@ The lookup structure provided O(1) enrichment and avoided repeated scans of user
 
 ### Target State
 
-The structure is not considered an architectural contract.
+The shared user mapping is no longer considered an architectural contract.
 
-Milestone 4 shall attempt to eliminate this structure.
+Milestone 4 shall remove shared runtime and workflow ownership of:
 
-If efficient correlation still requires a lookup mechanism, it may remain as a private implementation detail inside ZKTecoTransformationStrategy.
+    user_id -> employee_name
 
-The structure shall not become:
+Employee correlation becomes an internal responsibility of transformation normalisation.
 
-- a shared runtime contract
-- a workflow dependency
-- a public abstraction
+Concrete transformation strategies may use temporary lookup structures internally.
 
-## ETLP-29: Create Transformation Module
+Such structures remain private implementation details and must not appear in public contracts, workflow APIs, runtime state, or transformation boundaries.
+
+## ETLP-29: Introduce Transformation Layer
 
 ### Scope
 
@@ -259,7 +303,7 @@ Introduce the TransformationStrategy abstraction.
 - Runtime remains unaware of device-specific transformation details
 - No runtime behaviour changes
 
-## ETLP-30: Implement Canonical Transformer
+## ETLP-30: Implement ZKTeco Transformation Strategy
 
 ### Scope
 
@@ -269,15 +313,16 @@ Implement ZKTecoTransformationStrategy.
 
 - ZKTecoTransformationStrategy
 - Employee model construction
+- NormalisedAttendance construction
 - AttendanceEvent model construction
 
 ### Acceptance Criteria
 
-- Device-specific records are transformed into domain models
-- Runtime receives project-owned models
+- Device-specific records are transformed into NormalisedAttendance
+- Canonical AttendanceEvent objects are produced
 - Existing behaviour is preserved
 
-## ETLP-31: Add Validation Logic
+## ETLP-31: Implement Validation Pipeline
 
 ### Scope
 
@@ -297,7 +342,7 @@ Validation of:
 - Invalid data is detected consistently
 - Validation rules are isolated within the transformation layer
 
-## ETLP-32: Implement Data Normalisation
+## ETLP-32: Implement Normalisation Pipeline
 
 ### Scope
 
@@ -320,29 +365,31 @@ Normalisation of:
 
 ### Phase 1
 
-ETLP-29 — Create Transformation Module
+ETLP-29 — Introduce Transformation Layer
 
 ### Phase 2
 
-ETLP-30 — Implement Canonical Transformer
+ETLP-30 — Implement ZKTeco Transformation Strategy
 
 ### Phase 3
 
-ETLP-31 — Add Validation Logic
+ETLP-31 — Implement Validation Pipeline
 
 ### Phase 4
 
-ETLP-32 — Implement Data Normalisation
+ETLP-32 — Implement Normalisation Pipeline
 
 ## Acceptance Criteria
 
 Milestone 4 is considered complete when:
 
 - TransformationStrategy exists as a dedicated abstraction
-- Employee is the canonical employee model
+- Employee exists as a normalised employee model
+- NormalisedAttendance exists as an internal transformation model
 - AttendanceEvent is the canonical attendance model
-- Validation occurs within the transformation layer
-- Normalisation occurs within the transformation layer
+- AttendanceEvent includes site_id as canonical event context
+- Filtering occurs within the transformation layer
+- Shared user_mapping has been removed from runtime and workflow boundaries
 - Runtime remains device-agnostic
 - Existing runtime behaviour remains unchanged
 
