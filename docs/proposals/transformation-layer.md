@@ -285,44 +285,62 @@ Concrete transformation strategies may use temporary lookup structures internall
 
 Such structures remain private implementation details and must not appear in public contracts, workflow APIs, runtime state, or transformation boundaries.
 
-## ETLP-29: Introduce Transformation Layer
+## Phase 1 — Transformation Layer Foundation
+
+Related Issues:
+
+- ETLP-29
 
 ### Scope
 
-Introduce the TransformationStrategy abstraction.
+Introduce the internal transformation-layer foundation.
 
 ### Expected Deliverables
 
+- Employee
+- EventType
+- TransformationRequest
+- ExtractedBiometricData
+- TimeRange
+- NormalisedAttendance
 - TransformationStrategy interface or abstract base class
 - Transformation package structure
 - Documentation of transformation responsibilities
 
 ### Acceptance Criteria
 
+- Internal transformation-layer foundation artifacts are defined
 - Transformation responsibilities are clearly defined
 - Runtime remains unaware of device-specific transformation details
 - No runtime behaviour changes
 
-## ETLP-30: Implement ZKTeco Transformation Strategy
+## Phase 2 — Canonical Domain Models
+
+Related Issues:
+
+- ETLP-30
 
 ### Scope
 
-Implement ZKTecoTransformationStrategy.
+Define the canonical attendance model and external payload contracts produced by transformation.
 
 ### Expected Deliverables
 
-- ZKTecoTransformationStrategy
-- Employee model construction
-- NormalisedAttendance construction
 - AttendanceEvent model construction
+- AttendanceEvent serialisation contract
+- AttendanceEvent Pub/Sub payload contract
 
 ### Acceptance Criteria
 
-- Device-specific records are transformed into NormalisedAttendance
 - Canonical AttendanceEvent objects are produced
+- AttendanceEvent serialisation and Pub/Sub payload contracts are defined
 - Existing behaviour is preserved
 
-## ETLP-31: Implement Validation Pipeline
+## Phase 3 — Transformation Pipeline
+
+Related Issues:
+
+- ETLP-31
 
 ### Scope
 
@@ -342,11 +360,15 @@ Validation of:
 - Invalid data is detected consistently
 - Validation rules are isolated within the transformation layer
 
-## ETLP-32: Implement Normalisation Pipeline
+## Phase 4 — Vendor Integration
+
+Related Issues:
+
+- ETLP-32
 
 ### Scope
 
-Introduce normalisation during transformation.
+Introduce vendor-specific transformation strategy integration.
 
 ### Expected Deliverables
 
@@ -360,24 +382,6 @@ Normalisation of:
 
 - Equivalent data from different vendors produces equivalent domain models
 - Normalisation logic is isolated within the transformation layer
-
-## Implementation Phases
-
-### Phase 1
-
-ETLP-29 — Introduce Transformation Layer
-
-### Phase 2
-
-ETLP-30 — Implement ZKTeco Transformation Strategy
-
-### Phase 3
-
-ETLP-31 — Implement Validation Pipeline
-
-### Phase 4
-
-ETLP-32 — Implement Normalisation Pipeline
 
 ## Acceptance Criteria
 
