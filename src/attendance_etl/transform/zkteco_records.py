@@ -13,7 +13,7 @@ def convert_to_map(zk_users):
     logger.debug("Generating user id to name mapping for %s users...", len(zk_users))
     user_mapping = {}
     for zk_user in zk_users:
-        employee = Employee.from_zkteco_user(zk_user)
+        employee = Employee(id=str(zk_user.user_id), name=zk_user.name)
         user_mapping[zk_user.user_id] = employee
 
     return user_mapping

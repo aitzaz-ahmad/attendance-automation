@@ -35,9 +35,8 @@ class ZKTecoRecordTransformTests(unittest.TestCase):
 
         self.assertEqual(list(user_mapping), [10042])
         self.assertIsInstance(user_mapping[10042], Employee)
-        self.assertEqual(user_mapping[10042].employee_id, "10042")
+        self.assertEqual(user_mapping[10042].id, "10042")
         self.assertEqual(user_mapping[10042].name, "Ayesha Khan")
-        self.assertIsNone(user_mapping[10042].source_device_id)
 
     def test_convert_to_dict_preserves_external_attendance_payload_shape(self):
         users = [SimpleNamespace(user_id="10042", name="Ayesha Khan")]
