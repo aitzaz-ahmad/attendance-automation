@@ -9,8 +9,8 @@ from attendance_etl.transform import ExtractedBiometricData, NormalisedAttendanc
 
 class TransformationFoundationTests(unittest.TestCase):
     def test_event_type_values_are_vendor_neutral(self):
-        self.assertEqual(EventType.CLOCK_IN.value, "CLOCK_IN")
-        self.assertEqual(EventType.CLOCK_OUT.value, "CLOCK_OUT")
+        self.assertEqual(EventType.CLOCK_IN.value, "Check In")
+        self.assertEqual(EventType.CLOCK_OUT.value, "Check Out")
         self.assertEqual(set(EventType), {EventType.CLOCK_IN, EventType.CLOCK_OUT})
 
     def test_extracted_biometric_data_structure_groups_raw_device_data(self):

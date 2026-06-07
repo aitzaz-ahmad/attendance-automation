@@ -1,137 +1,184 @@
 # Canonical Attendance Event
 
-The canonical attendance event is the normalised internal representation of one attendance event reported by
-a source biometric device. It is produced after extraction and source-specific normalisation, during
-canonicalisation, and is intended for downstream publication, processing, and persistence.
+The canonical attendance event is the normalised internal representation of one
+attendance event reported by a source biometric device. It is produced after
+extraction and source-specific normalisation, during transformation and normalisation, and is
+intended for downstream publication, processing, and persistence.
 
-This contract describes the target canonical payload shape. Current device-specific decoding and publishing
-may still emit transitional fields until transformation work adopts this contract end to end.
+This contract distinguishes the current ETLP-30 internal model from the current
+backend-compatible Pub/Sub payload. ETLP-30 does not introduce a richer canonical
+wire schema.
 
-`attendance_etl.models.AttendanceEvent` is the Python dataclass representation of this contract for internal
-code. Its conversion helpers are available for model/dictionary conversion, but current runtime publishing may
-continue to use transitional dictionaries until canonical adoption is completed separately.
+For pipeline stage sequencing, see [Data Pipeline](../data-pipeline.md). For
+runtime adoption limits, see [Architecture](../architecture.md).
 
-For pipeline stage sequencing, see [Data Pipeline](../data-pipeline.md). For runtime adoption limits, see
-[Architecture](../architecture.md).
+## Current ETLP-30 Internal Model Contract
 
-## Schema
+`attendance_etl.models.AttendanceEvent` is the Python dataclass representation
+of the canonical internal attendance event model.
+
+Expected structure:
+
+```python
+@dataclass(frozen=True)
+class AttendanceEvent:
+    site_id: str
+    employee: Employee
+    event_type: EventType
+    timestamp: datetime
+```
+
+Current model fields:
 
 | field | type | required/optional | description | example |
 | --- | --- | --- | --- | --- |
-| `event_id` | string | required | Canonical event identifier. It should be deterministic when the source guarantees uniqueness; otherwise it is generated during transformation/canonicalisation. | `att-dev-dk-01-10042-2026-05-27T08:59:12Z` |
-| `source_device_id` | string | required | Configured or logical identifier for the biometric device that produced the source record. | `att-dev-dk-01` |
-| `employee_id` | string | required | Employee or device user identifier from the source device. | `10042` |
-| `event_timestamp` | string | required | ISO 8601 timestamp for when the attendance event occurred. | `2026-05-27T08:59:12Z` |
-| `event_type` | string | required | Canonical event type. Supported baseline values are `clock_in`, `clock_out`, and `unknown`. | `clock_in` |
-| `ingested_at` | string | required | ISO 8601 timestamp for when the source record was ingested. | `2026-05-27T09:00:03Z` |
-| `source_record_id` | string | optional | Original source-device record identifier, if the device or extraction layer provides one. | `zk-879221` |
-| `employee_name` | string | optional | Enrichment or display name associated with the employee. | `Ayesha Khan` |
-| `site_id` | string | optional | Logical office or site identifier associated with the source device. | `dk` |
-| `raw_event_type` | string | optional | Original source-device event or status value before canonicalisation. | `Check In` |
-| `metadata` | object | optional | Extension object for implementation-specific fields that should not become top-level contract fields yet. | `{"source_format":"zkteco"}` |
+| `site_id` | string | required | Logical office or site identifier associated with the source device. | `dk` |
+| `employee` | Employee | required | Normalised employee identity composed into the attendance event. | `Employee(id="10042", name="Ayesha Khan")` |
+| `event_type` | EventType | required | Attendance event type used for the current backend-compatible payload. | `EventType.CLOCK_IN` |
+| `timestamp` | datetime | required | Timestamp for when the attendance event occurred. | `datetime(2026, 5, 27, 8, 59, 12)` |
+
+`AttendanceEvent` composes `Employee` rather than duplicating employee attributes
+as flattened fields.
+
+## Current Backend-Compatible Pub/Sub Payload
+
+`AttendanceEvent.to_dict()` intentionally serialises to the Pub/Sub payload
+shape expected by the current backend:
+
+```json
+{
+  "username": "Ayesha Khan",
+  "timestamp": "27-05-2026 08:59:12",
+  "entry": "Check In",
+  "device": "dk"
+}
+```
+
+The serialisation contract is:
+
+```python
+{
+    "username": self.employee.name,
+    "timestamp": self.timestamp.strftime(ATTENDANCE_TIMESTAMP_FORMAT),
+    "entry": self.event_type.value,
+    "device": self.site_id,
+}
+```
+
+Timestamp serialisation currently uses:
+
+```python
+ATTENDANCE_TIMESTAMP_FORMAT = "%d-%m-%Y %H:%M:%S"
+```
+
+Current `EventType` values are intentionally backend-compatible:
+
+```python
+EventType.CLOCK_IN.value == "Check In"
+EventType.CLOCK_OUT.value == "Check Out"
+```
+
+The current wire payload remains transitional/backend-compatible. It must not be
+treated as the final canonical wire schema.
 
 ## Event Semantics
 
-One canonical attendance event represents one attendance interaction extracted from a source biometric
-device after normalisation/canonicalisation. It does not represent a review period, an employee schedule, an aggregate
-attendance day, or a storage update result.
+One canonical attendance event represents one attendance interaction extracted
+from a source biometric device after normalisation/canonicalisation. It does not
+represent a review period, an employee schedule, an aggregate attendance day, or
+a storage update result.
 
-Canonical events are intended to be the stable internal payload passed to publication, backend processing,
-and persistence boundaries. Runtime adoption is still transitional: current ingestion and storage paths may
-publish or consume legacy dictionaries until the transformation layer fully emits this contract.
+The ETLP-30 internal model is canonical for transformation-layer output. The
+current Pub/Sub payload remains shaped for backend compatibility until a
+dedicated contract migration introduces a richer canonical wire payload.
 
-## Field Semantics
+## Deferred Canonical Payload Evolution
 
-### Event Identity
+The following fields and semantics are deferred contract evolution items. They
+are not current ETLP-30 `AttendanceEvent` fields and are not emitted by the
+current ETLP-30 Pub/Sub payload.
 
-`event_id` identifies one canonical attendance event and should be stable and deterministic where possible. If
-the source provides a stable record identifier, that value may contribute to the canonical identity through
-`source_record_id` or the event ID derivation. If the source does not provide a stable record identifier, the
-canonicalisation layer may derive identity from stable source facts such as `source_device_id`, `employee_id`,
-`event_timestamp`, and source metadata.
+### event_id
 
-`event_id` must not depend on transient processing time alone. `ingested_at` can help with observability and
-ordering, but it is not sufficient as the only identity input.
+`event_id` is a future unique canonical event identifier.
 
-### Timestamps
+Current architectural preference is generation at the messaging/publication boundary, while allowing future design work to reassign ownership if required.
 
-`event_timestamp` is the time the attendance punch or source event occurred. `ingested_at` is the time the
-source record entered the pipeline. These fields have different meanings and must not be conflated.
+### ingested_at
 
-### Event Types
+`ingested_at` is a future publication or ingestion timestamp.
 
-`event_type` is the canonical event type used by baseline consumers. The accepted initial values are
-conservative: `clock_in`, `clock_out`, and `unknown`.
+Prefer generation at the messaging/publication boundary.
 
-`raw_event_type` preserves the source-specific status, label, or code before canonicalisation when that value
-is available. Future canonical `event_type` values broaden the contract and should be introduced through the
-schema evolution guidance below.
+### event_timestamp
+
+`event_timestamp` is the future canonical wire-payload name for the attendance
+event timestamp.
+
+The current ETLP-30 payload keeps `"timestamp"` for backend compatibility.
+
+### source_device_id
+
+`source_device_id` is a future canonical `AttendanceEvent` provenance field.
+
+It should be introduced once biometric device identity is available to the
+transformation layer.
+
+source_device_id provides event provenance and enables traceability back to the originating biometric device.
+
+### Timezone-Aware Timestamp Semantics
+
+Future canonical timestamps should preserve timezone information.
+
+Current ETLP-30 serialisation uses `ATTENDANCE_TIMESTAMP_FORMAT` for backend
+compatibility and does not preserve timezone information in the wire payload.
+
+### EventType Wire Values
+
+Current values remain:
+
+```python
+"Check In"
+"Check Out"
+```
+
+Future canonical wire values should migrate toward:
+
+```python
+"Clock In"
+"Clock Out"
+```
+
+Any migration of EventType wire values must be introduced through a dedicated
+contract migration issue.
 
 ## Schema Evolution
 
-- Additive optional fields are the preferred backward-compatible evolution path.
-- New required fields are breaking changes because baseline consumers may not provide or understand them.
-- Renaming or removing fields is breaking and requires explicit migration planning.
-- Broadening canonical enum-like values, including `event_type`, must be documented so consumers can decide
-  whether to reject, ignore, or handle the new value.
-- Consumers should tolerate unknown optional fields where reasonable.
-- `metadata` may carry implementation-specific extensions, but required business semantics should graduate to
-  documented top-level fields instead of remaining hidden inside `metadata`.
-
-## Required And Optional Fields
-
-Required fields define the minimum stable contract for a canonical attendance event. Optional fields enrich
-the event for display, debugging, source traceability, or implementation-specific use, but baseline consumers
-must not require optional fields to process a valid minimal payload.
-
-Promoting an optional field to required is a breaking change. Deprecations should be documented before
-removal, with enough migration guidance for producers and consumers to move away from the deprecated field.
+- The current ETLP-30 model fields are `site_id`, `employee`, `event_type`, and
+  `timestamp`.
+- The current ETLP-30 Pub/Sub payload fields are `username`, `timestamp`,
+  `entry`, and `device`.
+- Deferred canonical wire-payload fields must not be treated as currently
+  implemented fields.
+- Adding fields to `AttendanceEvent` is a contract change and should be
+  introduced through a scoped issue.
+- Renaming current payload keys is a contract migration and must include backend
+  compatibility planning.
+- Broadening or changing `EventType` wire values must be documented so consumers
+  can decide whether to reject, ignore, or handle the new value.
 
 ## Versioning
 
-Versioning is currently documentation-level only. This contract does not define a runtime `schema_version`
-field.
+Versioning is currently documentation-level only. This contract does not define
+a runtime `schema_version` field.
 
-A future runtime `schema_version` may be introduced if multiple incompatible canonical event shapes need to
-coexist. Until then, changes to this contract are governed by repository review and the repository changelog or
-commit history.
-
-## Minimal Payload
-
-```json
-{
-  "event_id": "att-dev-dk-01-10042-2026-05-27T08:59:12Z",
-  "source_device_id": "att-dev-dk-01",
-  "employee_id": "10042",
-  "event_timestamp": "2026-05-27T08:59:12Z",
-  "event_type": "clock_in",
-  "ingested_at": "2026-05-27T09:00:03Z"
-}
-```
-
-## Full Payload
-
-```json
-{
-  "event_id": "att-dev-dk-01-10042-2026-05-27T08:59:12Z",
-  "source_device_id": "att-dev-dk-01",
-  "employee_id": "10042",
-  "event_timestamp": "2026-05-27T08:59:12Z",
-  "event_type": "clock_in",
-  "ingested_at": "2026-05-27T09:00:03Z",
-  "source_record_id": "zk-879221",
-  "employee_name": "Ayesha Khan",
-  "site_id": "dk",
-  "raw_event_type": "Check In",
-  "metadata": {
-    "source_format": "zkteco",
-    "source_timezone": "Asia/Karachi"
-  }
-}
-```
+A future runtime `schema_version` may be introduced if multiple incompatible
+canonical event shapes need to coexist. Until then, changes to this contract are
+governed by repository review and the repository changelog or commit history.
 
 ## Non-Goals
 
 - This document defines the canonical attendance event contract only.
+- ETLP-30 does not introduce a richer canonical wire schema.
 - Runtime validation and enforcement are future work.
 - Device-specific raw payload formats are outside this document.

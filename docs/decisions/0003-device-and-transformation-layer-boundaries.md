@@ -376,6 +376,8 @@ and:
         punch: EventType
         timestamp: datetime
 
+`EventType` is a project-owned domain enumeration shared by `NormalisedAttendance` and `AttendanceEvent`.
+
 `NormalisedAttendance` is an internal transformation-layer model.
 
 It must not cross the transformation boundary.
@@ -394,6 +396,45 @@ Canonical attendance events shall include:
 - `employee`
 - `event_type`
 - `timestamp`
+
+`site_id` originates from the commissioned `BiometricDevice` instance and is propagated through the transformation layer.
+
+The lineage is:
+
+    BiometricDeviceConfig.site_id
+        ↓
+    BiometricDevice.site_id
+        ↓
+    AttendanceEvent.site_id
+
+### ETLP-30 Pub/Sub Payload Compatibility Addendum
+
+ETLP-30 makes the internal `AttendanceEvent` model canonical, but intentionally
+preserves backend-compatible Pub/Sub serialisation.
+
+The current wire payload remains transitional/backend-compatible:
+
+    {
+        "username": self.employee.name,
+        "timestamp": self.timestamp.strftime(ATTENDANCE_TIMESTAMP_FORMAT),
+        "entry": self.event_type.value,
+        "device": self.site_id,
+    }
+
+`EventType` values use `"Check In"` and `"Check Out"` for current backend
+compatibility.
+
+Richer canonical payload metadata is deferred to later contract migration work.
+Deferred items include:
+
+- `event_id`
+- `ingested_at`
+- `event_timestamp` as the future canonical wire-payload timestamp name
+- `source_device_id`
+- timezone-aware timestamp semantics
+- future `"Clock In"` and `"Clock Out"` EventType wire values
+
+`source_device_id` is intentionally excluded from the ETLP-30 `AttendanceEvent` contract despite being considered a future provenance attribute.
 
 ### Rationale
 
