@@ -1,16 +1,19 @@
 import unittest
 from datetime import datetime
+from typing import runtime_checkable
 
-from attendance_etl.models import AttendanceEvent, Employee, ISerializable, ReviewPeriod, RuntimeState
+from attendance_etl.models import AttendanceEvent, Employee, EventType, ISerializable, ReviewPeriod, RuntimeState
+
+ISerializable = runtime_checkable(ISerializable)
 
 
 class DomainModelTests(unittest.TestCase):
     def test_attendance_event_to_dict_preserves_current_backend_payload_shape(self):
         event = AttendanceEvent(
-            source_device_id="att-dev-dk-01",
-            event_timestamp=datetime(2026, 5, 27, 8, 59, 12),
-            employee_name="Ayesha Khan",
-            raw_event_type="Check In",
+            site_id="att-dev-dk-01",
+            employee=Employee(id="10042", name="Ayesha Khan"),
+            event_type=EventType.CLOCK_IN,
+            timestamp=datetime(2026, 5, 27, 8, 59, 12),
         )
 
         self.assertEqual(
@@ -23,51 +26,50 @@ class DomainModelTests(unittest.TestCase):
             },
         )
 
-    def test_attendance_event_from_dict_accepts_current_backend_payload_shape(self):
-        event = AttendanceEvent.from_dict(
-            {
-                "username": "Ayesha Khan",
-                "timestamp": "2026-05-27T08:59:12Z",
-                "entry": "Check In",
-                "device": "att-dev-dk-01",
-            }
-        )
-
-        self.assertEqual(event.employee_name, "Ayesha Khan")
-        self.assertEqual(event.event_timestamp.isoformat(), "2026-05-27T08:59:12+00:00")
-        self.assertEqual(event.raw_event_type, "Check In")
-        self.assertEqual(event.source_device_id, "att-dev-dk-01")
-        self.assertIsNone(event.event_id)
-        self.assertIsNone(event.employee_id)
-        self.assertIsNone(event.ingested_at)
-        self.assertEqual(event.metadata, {})
-
-    def test_attendance_event_model_retains_internal_semantics(self):
+    def test_attendance_event_contract_contains_only_canonical_fields(self):
+        employee = Employee(id="10042", name="Ayesha Khan")
         event = AttendanceEvent(
-            source_device_id="att-dev-dk-01",
-            event_timestamp=datetime(2026, 5, 27, 8, 59, 12),
-            employee_name="Ayesha Khan",
-            raw_event_type="Check In",
-            employee_id="10042",
-            event_type="clock_in",
-            event_id="att-dev-dk-01-10042-2026-05-27T08:59:12Z",
-            ingested_at=datetime(2026, 5, 27, 9, 0, 3),
-            source_record_id="zk-879221",
-            site_id="dk",
-            metadata={"source_format": "zkteco"},
+            site_id="att-dev-dk-01",
+            employee=employee,
+            event_type=EventType.CLOCK_OUT,
+            timestamp=datetime(2026, 5, 27, 17, 45, 3),
         )
 
-        self.assertEqual(event.event_id, "att-dev-dk-01-10042-2026-05-27T08:59:12Z")
-        self.assertEqual(event.source_device_id, "att-dev-dk-01")
-        self.assertEqual(event.employee_id, "10042")
-        self.assertEqual(event.event_timestamp, datetime(2026, 5, 27, 8, 59, 12))
-        self.assertEqual(event.event_type, "clock_in")
-        self.assertEqual(event.ingested_at, datetime(2026, 5, 27, 9, 0, 3))
-        self.assertEqual(event.source_record_id, "zk-879221")
-        self.assertEqual(event.employee_name, "Ayesha Khan")
-        self.assertEqual(event.site_id, "dk")
-        self.assertEqual(event.raw_event_type, "Check In")
-        self.assertEqual(event.metadata, {"source_format": "zkteco"})
+        self.assertTrue(issubclass(AttendanceEvent, ISerializable))
+        self.assertEqual(event.site_id, "att-dev-dk-01")
+        self.assertIs(event.employee, employee)
+        self.assertEqual(event.event_type, EventType.CLOCK_OUT)
+        self.assertEqual(event.timestamp, datetime(2026, 5, 27, 17, 45, 3))
+        self.assertEqual(
+            set(event.__dataclass_fields__),
+            {"site_id", "employee", "event_type", "timestamp"},
+        )
+        self.assertFalse(hasattr(AttendanceEvent, "from_dict"))
+
+    def test_attendance_event_contract_removes_legacy_fields(self):
+        event = AttendanceEvent(
+            site_id="att-dev-dk-01",
+            employee=Employee(id="10042", name="Ayesha Khan"),
+            event_type=EventType.CLOCK_IN,
+            timestamp=datetime(2026, 5, 27, 8, 59, 12),
+        )
+
+        for field_name in (
+            "source_device_id",
+            "event_timestamp",
+            "employee_name",
+            "raw_event_type",
+            "employee_id",
+            "event_id",
+            "ingested_at",
+            "source_record_id",
+            "metadata",
+        ):
+            self.assertFalse(hasattr(event, field_name))
+
+    def test_event_type_values_preserve_backend_payload_contract(self):
+        self.assertEqual(EventType.CLOCK_IN.value, "Check In")
+        self.assertEqual(EventType.CLOCK_OUT.value, "Check Out")
 
     def test_employee_contract_contains_only_normalised_identity(self):
         employee = Employee(id="10042", name="Ayesha Khan")
