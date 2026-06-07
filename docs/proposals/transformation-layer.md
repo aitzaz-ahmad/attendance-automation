@@ -355,10 +355,19 @@ Validation of:
 - event types
 - required fields
 
+Filtering of canonical attendance events using the stable ingestion watermark
+semantics:
+
+- exclusive lower bound for `last_stored_timestamp`
+- inclusive upper bound for the effective end time
+- `TimeRange.end_time=None` resolved to the current time inside the strategy filter
+
 ### Acceptance Criteria
 
 - Invalid data is detected consistently
 - Validation rules are isolated within the transformation layer
+- Filtering uses `start_time < timestamp <= effective_end_time`
+- Records equal to the ingestion watermark are excluded to avoid duplicate processing
 
 ## Phase 4 — Vendor Integration
 

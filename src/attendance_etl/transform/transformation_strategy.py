@@ -66,7 +66,7 @@ class TransformationStrategy(ABC):
             if not isinstance(attendance_event, AttendanceEvent):
                 raise ValueError("attendance_events[{}] must be AttendanceEvent".format(index))
 
-            if time_range.start_time <= attendance_event.timestamp <= effective_end_time:
+            if time_range.start_time < attendance_event.timestamp <= effective_end_time:
                 filtered_events.append(attendance_event)
 
         return filtered_events
