@@ -162,24 +162,53 @@ class TransformationStrategyTests(unittest.TestCase):
         self.assertEqual(event.event_type, EventType.CLOCK_OUT)
         self.assertIs(event.timestamp, timestamp)
 
-    def test_filter_uses_inclusive_boundaries(self):
+    def test_filter_excludes_record_equal_to_start_time(self):
         employee = Employee(id="10042", name="Ayesha Khan")
-        before_start = AttendanceEvent("dk", employee, EventType.CLOCK_IN, datetime(2026, 5, 27, 7, 59, 59))
         at_start = AttendanceEvent("dk", employee, EventType.CLOCK_IN, datetime(2026, 5, 27, 8, 0, 0))
-        middle = AttendanceEvent("dk", employee, EventType.CLOCK_OUT, datetime(2026, 5, 27, 12, 0, 0))
+        time_range = TimeRange(
+            start_time=datetime(2026, 5, 27, 8, 0, 0),
+            end_time=datetime(2026, 5, 27, 17, 0, 0),
+        )
+
+        filtered_events = ConcreteTransformationStrategy().filter([at_start], time_range)
+
+        self.assertEqual(filtered_events, [])
+
+    def test_filter_includes_record_after_start_time(self):
+        employee = Employee(id="10042", name="Ayesha Khan")
+        after_start = AttendanceEvent("dk", employee, EventType.CLOCK_IN, datetime(2026, 5, 27, 8, 0, 1))
+        time_range = TimeRange(
+            start_time=datetime(2026, 5, 27, 8, 0, 0),
+            end_time=datetime(2026, 5, 27, 17, 0, 0),
+        )
+
+        filtered_events = ConcreteTransformationStrategy().filter([after_start], time_range)
+
+        self.assertEqual(filtered_events, [after_start])
+
+    def test_filter_includes_record_equal_to_effective_end_time(self):
+        employee = Employee(id="10042", name="Ayesha Khan")
         at_end = AttendanceEvent("dk", employee, EventType.CLOCK_OUT, datetime(2026, 5, 27, 17, 0, 0))
+        time_range = TimeRange(
+            start_time=datetime(2026, 5, 27, 8, 0, 0),
+            end_time=datetime(2026, 5, 27, 17, 0, 0),
+        )
+
+        filtered_events = ConcreteTransformationStrategy().filter([at_end], time_range)
+
+        self.assertEqual(filtered_events, [at_end])
+
+    def test_filter_excludes_record_after_effective_end_time(self):
+        employee = Employee(id="10042", name="Ayesha Khan")
         after_end = AttendanceEvent("dk", employee, EventType.CLOCK_OUT, datetime(2026, 5, 27, 17, 0, 1))
         time_range = TimeRange(
             start_time=datetime(2026, 5, 27, 8, 0, 0),
             end_time=datetime(2026, 5, 27, 17, 0, 0),
         )
 
-        filtered_events = ConcreteTransformationStrategy().filter(
-            [before_start, at_start, middle, at_end, after_end],
-            time_range,
-        )
+        filtered_events = ConcreteTransformationStrategy().filter([after_end], time_range)
 
-        self.assertEqual(filtered_events, [at_start, middle, at_end])
+        self.assertEqual(filtered_events, [])
 
     def test_filter_preserves_input_ordering(self):
         employee = Employee(id="10042", name="Ayesha Khan")

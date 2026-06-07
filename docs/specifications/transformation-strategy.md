@@ -201,7 +201,13 @@ Expected structure:
         start_time: datetime
         end_time: Optional[datetime] = None
 
-If end_time is omitted, filtering should treat the upper bound as the current time.
+`start_time` represents the ingestion watermark / last stored timestamp.
+Records equal to this watermark have already been stored and must be excluded
+to avoid duplicate processing.
+
+If end_time is omitted, filtering should treat the upper bound as the current
+time. The current time is resolved inside `TransformationStrategy.filter(...)`;
+TimeRange remains a passive data structure.
 
 ## NormalisedAttendance
 
@@ -388,6 +394,14 @@ Filtering receives:
 Filtering applies date-time boundaries to canonical attendance events.
 
 Filtering uses the TimeRange supplied in TransformationRequest.
+
+Filtering uses an exclusive lower bound and inclusive upper bound:
+
+    time_range.start_time < event.timestamp <= effective_end_time
+
+`effective_end_time` is `time_range.end_time` when provided. When
+`time_range.end_time` is omitted, `TransformationStrategy.filter(...)` resolves
+`effective_end_time` with `datetime.now()`.
 
 Filtering does not operate on raw SDK records.
 

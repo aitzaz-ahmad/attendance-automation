@@ -448,6 +448,11 @@ Canonicalisation converts validated normalised attendance into project-owned att
 
 Filtering operates on canonical attendance events rather than vendor SDK record types.
 
+Filtering preserves the stable ingestion watermark semantics:
+`last_stored_timestamp` is the lower bound, records equal to that watermark are
+excluded to avoid duplicate processing, and records up to and including the
+effective end time are included.
+
 ## Consequences
 
 ### Positive
