@@ -1,8 +1,14 @@
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from typing import Any, Dict, Optional
 
 ATTENDANCE_TIMESTAMP_FORMAT = "%d-%m-%Y %H:%M:%S"
+
+
+class EventType(Enum):
+    CLOCK_IN = "CLOCK_IN"
+    CLOCK_OUT = "CLOCK_OUT"
 
 
 def _parse_datetime(value: str) -> datetime:

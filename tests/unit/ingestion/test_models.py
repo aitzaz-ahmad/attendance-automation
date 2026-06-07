@@ -1,8 +1,7 @@
 import unittest
 from datetime import datetime
-from types import SimpleNamespace
 
-from attendance_etl.models import AttendanceEvent, Employee, ReviewPeriod, RuntimeState
+from attendance_etl.models import AttendanceEvent, Employee, ISerializable, ReviewPeriod, RuntimeState
 
 
 class DomainModelTests(unittest.TestCase):
@@ -70,15 +69,20 @@ class DomainModelTests(unittest.TestCase):
         self.assertEqual(event.raw_event_type, "Check In")
         self.assertEqual(event.metadata, {"source_format": "zkteco"})
 
-    def test_employee_from_zkteco_user_keeps_minimal_identity(self):
-        employee = Employee.from_zkteco_user(
-            SimpleNamespace(user_id="10042", name="Ayesha Khan"),
-            source_device_id="att-dev-dk-01",
-        )
+    def test_employee_contract_contains_only_normalised_identity(self):
+        employee = Employee(id="10042", name="Ayesha Khan")
 
-        self.assertEqual(employee.employee_id, "10042")
+        self.assertIn(ISerializable, Employee.__mro__)
+        self.assertEqual(employee.id, "10042")
         self.assertEqual(employee.name, "Ayesha Khan")
-        self.assertEqual(employee.source_device_id, "att-dev-dk-01")
+        self.assertEqual(set(employee.__dataclass_fields__), {"id", "name"})
+        self.assertFalse(hasattr(Employee, "from_dict"))
+        self.assertFalse(hasattr(Employee, "from_zkteco_user"))
+
+    def test_employee_to_dict_serializes_normalised_identity(self):
+        employee = Employee(id="10042", name="Ayesha Khan")
+
+        self.assertEqual(employee.to_dict(), {"id": "10042", "name": "Ayesha Khan"})
 
     def test_review_period_round_trip_preserves_legacy_keys_and_metadata(self):
         payload = {

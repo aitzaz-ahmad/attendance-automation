@@ -323,12 +323,12 @@ Milestone:
 
     4. Transformation Layer
 
-Relevant Issues:
+Relevant transformation capabilities:
 
-- Create Transformation Module
-- Implement Canonical Transformer
-- Add Validation Logic
-- Implement Data Normalisation
+- Introduce transformation layer
+- Introduce canonical attendance models
+- Introduce validation pipeline
+- Introduce normalisation pipeline
 
 Reason:
 
