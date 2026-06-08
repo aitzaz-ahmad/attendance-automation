@@ -9,6 +9,7 @@ from attendance_etl.pi4.state import Pi4RuntimeState
 from attendance_etl.pi4.workflow import Pi4Workflow
 from attendance_etl.storage.review_period import load_review_period
 from attendance_etl.storage.snapshot import load_snapshot
+from attendance_etl.transform.transformation_strategy_factory import TransformationStrategyFactory
 
 logger = get_logger("Pi4Runtime")
 
@@ -49,6 +50,7 @@ def bootstrap_pi4(verbosity=logging.INFO):
     device_config = load_biometric_device_config()
     state.device_info = device_info_from_config(device_config)
     device = BiometricDeviceFactory.create(device_config)
+    strategy = TransformationStrategyFactory.create(device_config.vendor)
     messenger = PubSubMessenger(state.device_info["site_id"])
 
     review_period = load_review_period()
@@ -57,7 +59,7 @@ def bootstrap_pi4(verbosity=logging.INFO):
 
     load_snapshot_into_state(state)
 
-    return Pi4Workflow(state, device, messenger)
+    return Pi4Workflow(state, device, strategy, messenger)
 
 
 def run(workflow):

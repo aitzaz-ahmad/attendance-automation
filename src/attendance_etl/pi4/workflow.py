@@ -21,14 +21,17 @@ from attendance_etl.pi4.state import (
 )
 from attendance_etl.storage.review_period import save_review_period
 from attendance_etl.storage.snapshot import save_snapshot
+from attendance_etl.transform.transformation_request import TimeRange, TransformationRequest
+from attendance_etl.transform.transformation_strategy import TransformationStrategy
 
 logger = get_logger("Pi4Workflow")
 
 
 class Pi4Workflow:
-    def __init__(self, state, device: BiometricDevice, messenger):
+    def __init__(self, state, device: BiometricDevice, strategy: TransformationStrategy, messenger):
         self.state = state
         self.device = device
+        self.strategy = strategy
         self.messenger = messenger
         self.handler_table = self.setup_handler_table()
 
@@ -118,6 +121,16 @@ class Pi4Workflow:
         # case of an attempted recovery from a shutdown.
         if self.state.pi4_state not in WAITING_STATES:
             self.capture_snapshot()
+
+    def extract_and_transform_attendance(self, from_timestamp):
+        raw_data = self.device.extract_biometric_data()
+        request = TransformationRequest(
+            raw_data=raw_data,
+            site_id=self.device.site_id,
+            time_range=TimeRange(start_time=from_timestamp),
+        )
+        attendance_events = self.strategy.transform(request)
+        return [event.to_dict() for event in attendance_events]
 
     def handler_fetch_review_period(self):
         """
@@ -223,7 +236,7 @@ class Pi4Workflow:
             from_timestamp = datetime.strptime(self.state.last_stored_timestamp, "%d-%m-%Y %H:%M:%S")
         else:
             from_timestamp = datetime.strptime(review_period_info["start_date"], "%m/%d/%Y")
-        new_records = self.device.extract_attendance_records(from_timestamp)
+        new_records = self.extract_and_transform_attendance(from_timestamp)
 
         if len(new_records) > 0:
             # new (unsaved) attendance records are available on the device since
@@ -267,7 +280,7 @@ class Pi4Workflow:
         else:
             from_timestamp = datetime.strptime(review_period_info["start_date"], "%m/%d/%Y")
 
-        new_records = self.device.extract_attendance_records(from_timestamp)
+        new_records = self.extract_and_transform_attendance(from_timestamp)
         if len(new_records) == 0:
             # there are no unsaved attendance records on the biometric device,
             # therefore, it is safe to delete all attendance data from the device
