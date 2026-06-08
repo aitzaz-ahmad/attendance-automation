@@ -87,8 +87,9 @@ The Raspberry Pi ingestion client is split into focused package modules:
 - `attendance_etl.devices.biometric_device_factory` owns concrete biometric device construction.
 - `attendance_etl.devices.zkteco_device` owns ZKTeco SDK integration, ZKTeco connection lifecycle, device
   reads, attendance clearing, and ZKTeco implementation-level defaults.
-- `attendance_etl.transform.zkteco_records` owns current ZKTeco user mapping, filtering, and transitional
-  record decoding.
+- `attendance_etl.transform.zkteco_transformation_strategy` owns ZKTeco user correlation and punch
+  normalisation. Timestamp filtering is owned by `TransformationStrategy.filter(...)`, and
+  backend-compatible payload serialisation is owned by `AttendanceEvent.to_dict()`.
 - `attendance_etl.models` owns lightweight dataclass representations for core domain contracts such as
   attendance events, employees, review periods, and persisted runtime state.
 - `attendance_etl.config` owns shared runtime configuration constants such as Pub/Sub names, local runtime

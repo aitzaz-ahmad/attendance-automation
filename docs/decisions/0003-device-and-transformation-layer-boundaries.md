@@ -286,7 +286,7 @@ Keeping both abstractions as siblings coordinated by runtime orchestration prese
 
 ### Context
 
-The current implementation maintains:
+At the time of this decision, the implementation maintained:
 
     user_id -> employee_name
 
