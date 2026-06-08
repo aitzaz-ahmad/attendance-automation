@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 import attendance_etl.pi4.workflow as workflow_module
-from attendance_etl.models import RuntimeState
+from attendance_etl.models import AttendanceEvent, Employee, EventType, RuntimeState
 from attendance_etl.pi4.state import (
     AWAIT_LAST_STORED_TIMESTAMP,
     AWAIT_REVIEW_PERIOD,
@@ -13,6 +13,7 @@ from attendance_etl.pi4.state import (
     Pi4RuntimeState,
 )
 from attendance_etl.pi4.workflow import Pi4Workflow
+from attendance_etl.transform import ExtractedBiometricData, TimeRange
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 WORKFLOW_PATH = REPO_ROOT / "src/attendance_etl/pi4/workflow.py"
@@ -79,20 +80,39 @@ class DeviceStub:
 
 
 class DeviceExtractionSpy:
-    def __init__(self, records):
-        self.records = records
+    def __init__(self, raw_data, site_id="munich-office"):
+        self.raw_data = raw_data
+        self.site_id = site_id
         self.extract_calls = []
         self.clear_calls = 0
 
-    def extract_attendance_records(self, from_date, to_date=None):
-        self.extract_calls.append((from_date, to_date))
-        return self.records
+    def extract_biometric_data(self):
+        self.extract_calls.append(())
+        return self.raw_data
 
     def pull_records(self):
         raise AssertionError("workflow must not pull raw biometric records")
 
     def clear_records(self):
         self.clear_calls += 1
+
+
+class StrategyStub:
+    def __init__(self, attendance_events=None):
+        self.attendance_events = attendance_events or []
+
+    def transform(self, request):
+        return self.attendance_events
+
+
+class StrategySpy:
+    def __init__(self, attendance_events):
+        self.attendance_events = attendance_events
+        self.requests = []
+
+    def transform(self, request):
+        self.requests.append(request)
+        return self.attendance_events
 
 
 class MessengerPublishSpy:
@@ -118,6 +138,7 @@ class Pi4WorkflowTests(unittest.TestCase):
         return Pi4Workflow(
             state or Pi4RuntimeState(),
             DeviceStub(),
+            StrategyStub(),
             messenger or MessengerStub({}),
         )
 
@@ -170,12 +191,19 @@ class Pi4WorkflowTests(unittest.TestCase):
         self.assertIsInstance(snapshot_saver.saves[0], RuntimeState)
         self.assertEqual(snapshot_saver.saves[0].pi4_state, FETCH_REVIEW_PERIOD)
 
-    def test_relay_attendance_records_delegates_extraction_through_biometric_device(self):
+    def test_relay_attendance_records_delegates_extraction_and_transformation(self):
         workflow_module.time.sleep = lambda seconds: None
         snapshot_saver = SnapshotSpy()
         workflow_module.save_snapshot = snapshot_saver.save
-        record = {"username": "Ada", "timestamp": "27-05-2026 08:05:00", "entry": "Check In", "device": "munich-office"}
-        device = DeviceExtractionSpy([record])
+        raw_data = ExtractedBiometricData(employees=["raw-user"], attendance_records=["raw-record"])
+        device = DeviceExtractionSpy(raw_data)
+        event = AttendanceEvent(
+            site_id="munich-office",
+            employee=Employee(id="10042", name="Ada Lovelace"),
+            event_type=EventType.CLOCK_IN,
+            timestamp=datetime(2026, 5, 27, 8, 5, 0),
+        )
+        strategy = StrategySpy([event])
         messenger = MessengerPublishSpy()
         state = Pi4RuntimeState(
             pi4_state=FETCH_REVIEW_PERIOD,
@@ -183,14 +211,15 @@ class Pi4WorkflowTests(unittest.TestCase):
             review_sheet_id="sheet-123",
         )
         state.review_period_info = {"start_date": "05/27/2026", "end_date": "12/31/2099"}
-        workflow = Pi4Workflow(state, device, messenger)
+        workflow = Pi4Workflow(state, device, strategy, messenger)
 
         workflow.handler_relay_attendance_records()
 
-        self.assertEqual(
-            device.extract_calls,
-            [(datetime(2026, 5, 27), None)],
-        )
+        self.assertEqual(device.extract_calls, [()])
+        self.assertEqual(len(strategy.requests), 1)
+        self.assertIs(strategy.requests[0].raw_data, raw_data)
+        self.assertEqual(strategy.requests[0].site_id, "munich-office")
+        self.assertEqual(strategy.requests[0].time_range, TimeRange(start_time=datetime(2026, 5, 27)))
         self.assertEqual(
             messenger.published,
             [
@@ -200,7 +229,7 @@ class Pi4WorkflowTests(unittest.TestCase):
                         "sheet_id": "sheet-123",
                         "device_id": "munich-office",
                         "start_date": "05/27/2026",
-                        "records": [record],
+                        "records": [event.to_dict()],
                     },
                 )
             ],
@@ -211,20 +240,23 @@ class Pi4WorkflowTests(unittest.TestCase):
     def test_review_period_expiry_delegates_extraction_before_clearing_device_records(self):
         snapshot_saver = SnapshotSpy()
         workflow_module.save_snapshot = snapshot_saver.save
-        device = DeviceExtractionSpy([])
+        raw_data = ExtractedBiometricData(employees=[], attendance_records=[])
+        device = DeviceExtractionSpy(raw_data)
+        strategy = StrategySpy([])
         state = Pi4RuntimeState(
             pi4_state=FETCH_REVIEW_PERIOD,
             device_info={"site_id": "munich-office"},
         )
         state.review_period_info = {"start_date": "05/27/2026", "end_date": "05/29/2026"}
-        workflow = Pi4Workflow(state, device, MessengerStub({}))
+        workflow = Pi4Workflow(state, device, strategy, MessengerStub({}))
 
         workflow.handler_review_period_expired()
 
-        self.assertEqual(
-            device.extract_calls,
-            [(datetime(2026, 5, 27), None)],
-        )
+        self.assertEqual(device.extract_calls, [()])
+        self.assertEqual(len(strategy.requests), 1)
+        self.assertIs(strategy.requests[0].raw_data, raw_data)
+        self.assertEqual(strategy.requests[0].site_id, "munich-office")
+        self.assertEqual(strategy.requests[0].time_range, TimeRange(start_time=datetime(2026, 5, 27)))
         self.assertEqual(device.clear_calls, 1)
         self.assertIsNone(state.review_sheet_id)
         self.assertIsNone(state.last_stored_timestamp)
@@ -238,10 +270,14 @@ class Pi4WorkflowTests(unittest.TestCase):
         self.assertNotIn("attendance_etl.transform.zkteco_records.decode_zk_format", imported)
         self.assertNotIn("attendance_etl.transform.zkteco_records.filter_records", imported)
         self.assertFalse(calls_named(WORKFLOW_PATH, "pull_records"))
+        self.assertFalse(calls_named(WORKFLOW_PATH, "extract_attendance_records"))
         self.assertFalse(calls_named(WORKFLOW_PATH, "convert_to_map"))
         self.assertFalse(calls_named(WORKFLOW_PATH, "decode_zk_format"))
         self.assertFalse(calls_named(WORKFLOW_PATH, "filter_records"))
-        self.assertTrue(calls_named(WORKFLOW_PATH, "extract_attendance_records"))
+        self.assertFalse(calls_named(WORKFLOW_PATH, "AttendanceEvent"))
+        self.assertNotIn("punch", WORKFLOW_PATH.read_text())
+        self.assertTrue(calls_named(WORKFLOW_PATH, "extract_biometric_data"))
+        self.assertTrue(calls_named(WORKFLOW_PATH, "transform"))
 
 
 if __name__ == "__main__":

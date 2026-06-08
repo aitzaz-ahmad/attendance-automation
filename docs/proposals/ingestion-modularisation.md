@@ -9,6 +9,10 @@ Refactor the current monolithic ingestion client into focused modules while pres
 Implemented with later corrections.
 
 This proposal records the original ETLP-21 implementation plan. Some proposed abstractions were later rejected or superseded by ADR-0001 and ADR-0002.
+ETLP-32 later superseded the proposed active `transform.zkteco_records` helper ownership: ZKTeco user
+correlation and punch normalisation now belong to `ZKTecoTransformationStrategy.normalise(...)`, timestamp
+filtering belongs to `TransformationStrategy.filter(...)`, and backend-compatible payload serialisation belongs
+to `AttendanceEvent.to_dict()`.
 
 ## Superseded Planning Notes
 
@@ -18,7 +22,7 @@ The following names appeared in the original ETLP-21 proposal but are no longer 
 - `SnapshotStore`: rejected during ETLP-24; use `load_snapshot()` / `save_snapshot(RuntimeState)`.
 - `ReviewPeriodStore`: rejected during ETLP-24; use `load_review_period()` / `save_review_period(ReviewPeriod)`.
 
-## Current Responsibility Map
+## ETLP-21-Era Responsibility Map
 
 | Area | Current Owner | Current Responsibility |
 | --- | --- | --- |
@@ -30,7 +34,7 @@ The following names appeared in the original ETLP-21 proposal but are no longer 
 | Pi state/FSM | `attendance_etl.ingestion.client` | State constants, flags, globals, handler table, transitions, sleeps |
 | Runtime bootstrap | `attendance_etl.ingestion.client` | Loads config/review period/snapshot, then runs endless dispatch loop |
 
-## Proposed Package Structure
+## Original Proposed Package Structure
 
 ```text
 attendance_etl/
@@ -40,7 +44,7 @@ attendance_etl/
 │   └── zkteco.py            # ZKTecoDevice and device timeout
 ├── transform/
 │   ├── __init__.py
-│   └── zkteco_records.py    # Stateless current-format decoding/filtering
+│   └── zkteco_records.py    # ETLP-21 proposal only; superseded by ETLP-32 strategy ownership
 ├── messaging/
 │   ├── __init__.py
 │   └── pubsub.py            # Pub/Sub constants and PubSubMessenger
@@ -69,14 +73,14 @@ attendance_etl/
 | `PiState` | `pi4.state` | Replaces mutable module globals with one runtime state object |
 | `IngestionWorkflow` | `pi4.workflow` | Owns transition rules, handler table, review-period timing policy, and record relay orchestration |
 | `PiRuntime` | `pi4.runtime` | Composition root: load config, instantiate concrete device/messenger/stores/workflow, run forever |
-| Stateless functions | `transform.zkteco_records` | Keep `convert_to_map`, `convert_to_dict`, `decode_zk_format`, `filter_records`; no class |
+| Stateless functions | `transform.zkteco_records` | Original ETLP-21 proposal only; superseded by ETLP-32 transformation strategy ownership |
 
 ## Function-To-Module Migration Table
 
 | Current Function(s) | Target |
 | --- | --- |
 | `clear_records_from_device`, `pull_records_from_device` | `ZKTecoDevice.clear_records`, `ZKTecoDevice.pull_records`; facade wrappers may remain |
-| `convert_to_map`, `convert_to_dict`, `decode_zk_format`, `filter_records` | `transform.zkteco_records` unchanged in behavior |
+| `convert_to_map`, `convert_to_dict`, `decode_zk_format`, `filter_records` | Original ETLP-21 proposal only; superseded by `ZKTecoTransformationStrategy.normalise(...)`, `TransformationStrategy.filter(...)`, and `AttendanceEvent.to_dict()` |
 | `get_attendance_records` | `IngestionWorkflow.get_attendance_records`, using `AttendanceDevice` plus transform functions |
 | `review_period_expired`, `wait_duration_before_next_pull` | `pi4.workflow` pure helpers or workflow methods, preserving Friday-to-Sunday extension and local `datetime.today()` behavior |
 | `publish_message_to_topic`, `subscription_exists`, `create_subscription`, `is_directed_to_me`, `sync_pull_message` | `PubSubMessenger` methods |
@@ -99,7 +103,7 @@ src/pi4/pi4_client.py
       -> attendance_etl.storage.review_period
       -> attendance_etl.pi4.workflow
         -> attendance_etl.pi4.state
-        -> attendance_etl.transform.zkteco_records
+        -> attendance_etl.transform.zkteco_records  # ETLP-21 proposal only; superseded by ETLP-32
 ```
 
 Note: the original proposal referenced an `AttendanceDevice` abstraction. This was later deferred to Milestone 3 — Device Layer Abstraction and should not be treated as implemented architecture.

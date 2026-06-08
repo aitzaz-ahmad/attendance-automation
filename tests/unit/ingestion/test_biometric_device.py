@@ -1,11 +1,11 @@
 import ast
 import inspect
 import unittest
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Mapping, Optional, Sequence, Tuple
+from typing import Any, Sequence, Tuple
 
 from attendance_etl.devices.biometric_device import BiometricDevice
+from attendance_etl.transform import ExtractedBiometricData
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -15,8 +15,8 @@ class DummyBiometricDevice(BiometricDevice):
         super().__init__(site_id)
         self.cleared = False
 
-    def extract_attendance_records(self, from_date, to_date=None):
-        return [{"device": self.site_id, "timestamp": from_date, "to_date": to_date}]
+    def extract_biometric_data(self):
+        return ExtractedBiometricData(employees=["user-1"], attendance_records=["record-1"])
 
     def pull_records(self):
         return ["user-1"], ["record-1"]
@@ -64,21 +64,18 @@ class BiometricDeviceTests(unittest.TestCase):
             name for name, value in vars(BiometricDevice).items() if callable(value) and not name.startswith("_")
         }
 
-        self.assertEqual(public_methods, {"extract_attendance_records", "pull_records", "clear_records"})
+        self.assertEqual(public_methods, {"extract_biometric_data", "pull_records", "clear_records"})
 
-        extract_signature = inspect.signature(BiometricDevice.extract_attendance_records)
+        extract_signature = inspect.signature(BiometricDevice.extract_biometric_data)
         pull_records_signature = inspect.signature(BiometricDevice.pull_records)
         clear_records_signature = inspect.signature(BiometricDevice.clear_records)
         self.assertEqual(
             list(extract_signature.parameters),
-            ["self", "from_date", "to_date"],
+            ["self"],
         )
-        self.assertEqual(extract_signature.parameters["from_date"].annotation, datetime)
-        self.assertEqual(extract_signature.parameters["to_date"].annotation, Optional[datetime])
-        self.assertIsNone(extract_signature.parameters["to_date"].default)
         self.assertEqual(
             extract_signature.return_annotation,
-            Sequence[Mapping[str, Any]],
+            ExtractedBiometricData,
         )
         self.assertEqual(list(pull_records_signature.parameters), ["self"])
         self.assertEqual(
@@ -103,14 +100,11 @@ class BiometricDeviceTests(unittest.TestCase):
         device = DummyBiometricDevice()
 
         typed_device: BiometricDevice = device
-        extracted_records = typed_device.extract_attendance_records(datetime(2026, 5, 27, 8, 0, 0))
+        raw_data = typed_device.extract_biometric_data()
         users, records = typed_device.pull_records()
         typed_device.clear_records()
 
-        self.assertEqual(
-            extracted_records,
-            [{"device": "munich-office", "timestamp": datetime(2026, 5, 27, 8, 0, 0), "to_date": None}],
-        )
+        self.assertEqual(raw_data, ExtractedBiometricData(employees=["user-1"], attendance_records=["record-1"]))
         self.assertEqual(users, ["user-1"])
         self.assertEqual(records, ["record-1"])
         self.assertTrue(device.cleared)

@@ -1,8 +1,9 @@
 """Project-owned biometric device access contracts."""
 
 from abc import ABC, abstractmethod
-from datetime import datetime
-from typing import Any, Mapping, Optional, Sequence, Tuple
+from typing import Any, Sequence, Tuple
+
+from attendance_etl.transform.transformation_request import ExtractedBiometricData
 
 
 class BiometricDevice(ABC):
@@ -19,12 +20,8 @@ class BiometricDevice(ABC):
         return self._site_id
 
     @abstractmethod
-    def extract_attendance_records(
-        self,
-        from_date: datetime,
-        to_date: Optional[datetime] = None,
-    ) -> Sequence[Mapping[str, Any]]:
-        """Return attendance records extracted for a review window."""
+    def extract_biometric_data(self) -> ExtractedBiometricData:
+        """Return raw biometric data extracted from the device."""
 
     @abstractmethod
     def pull_records(self) -> Tuple[Sequence[Any], Sequence[Any]]:

@@ -1,12 +1,11 @@
-from datetime import datetime
-from typing import Any, Mapping, Optional, Sequence, Tuple
+from typing import Any, Sequence, Tuple
 
 from zk import ZK
 
 from attendance_etl.devices.biometric_device import BiometricDevice
 from attendance_etl.devices.biometric_device_config import ZKTecoOptions
 from attendance_etl.logging_utils import get_logger
-from attendance_etl.transform.zkteco_records import convert_to_map, decode_zk_format, filter_records
+from attendance_etl.transform.transformation_request import ExtractedBiometricData
 
 logger = get_logger("ZKTecoDevice")
 
@@ -27,24 +26,12 @@ class ZKTecoDevice(BiometricDevice):
     def clear_records(self) -> None:
         self._clear_records_from_device()
 
-    def extract_attendance_records(
-        self,
-        from_date: datetime,
-        to_date: Optional[datetime] = None,
-    ) -> Sequence[Mapping[str, Any]]:
-        logger.debug("extract_attendance_records invoked")
+    def extract_biometric_data(self) -> ExtractedBiometricData:
+        logger.debug("extract_biometric_data invoked")
         logger.info("fetching data from site %s", self.site_id)
         users, records = self.pull_records()
-        logger.info("filtering attendance records since %s", from_date.strftime("%d-%m-%Y %H:%M:%S"))
-        unsaved_records = filter_records(records, from_date, to_date)
-        logger.info("%s unsaved attendance records found", len(unsaved_records))
-        user_mapping = convert_to_map(users)
-        logger.debug("decoding unsaved records from zkteco format...")
-        decoded_records = decode_zk_format(unsaved_records, user_mapping, self.site_id)
 
-        logger.info("%s attendance records decoded", len(decoded_records))
-
-        return decoded_records
+        return ExtractedBiometricData(employees=users, attendance_records=records)
 
     def pull_records(self) -> Tuple[Sequence[Any], Sequence[Any]]:
         return self._pull_records_from_device()

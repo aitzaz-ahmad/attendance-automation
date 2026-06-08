@@ -255,9 +255,9 @@ AttendanceEvent shall compose Employee rather than duplicating employee attribut
 
 ## User Mapping Treatment
 
-### Current Implementation
+### Implementation Context
 
-The current implementation maintains:
+At the time of this proposal, the implementation maintained:
 
     user_id -> employee_name
 

@@ -19,9 +19,9 @@ Sheets output.
 
 | Stage | Component | Input | Output | Status |
 | --- | --- | --- | --- | --- |
-| 1. Device polling / extraction | `attendance_etl.device.zkteco`, orchestrated by `attendance_etl.pi4.workflow` and available through `src/pi4/pi4_client.py` compatibility wrapper | ZKTeco biometric device users and attendance records | Device user list and raw attendance records | Implemented for the current ZKTeco device path |
-| 2. Raw record normalisation | `attendance_etl.transform.zkteco_records` | Raw ZKTeco users and attendance records filtered by review timestamp | Transitional Python dictionaries with `username`, `timestamp`, `entry`, and `device` fields | Implemented as device-specific decoding |
-| 3. Canonicalisation | Target contract in `docs/contracts/canonical-attendance-event.md` | Normalised source/device records | Canonical attendance event payload | Documented target; not fully adopted by runtime publishing yet |
+| 1. Device polling / extraction | `attendance_etl.devices.zkteco_device`, orchestrated by `attendance_etl.pi4.workflow` and available through `src/pi4/pi4_client.py` compatibility wrapper | ZKTeco biometric device users and attendance records | `ExtractedBiometricData` with raw device users and attendance records | Implemented for the current ZKTeco device path |
+| 2. Raw record normalisation | `attendance_etl.transform.zkteco_transformation_strategy` | `ExtractedBiometricData` and review timestamp range supplied through `TransformationRequest` | `NormalisedAttendance` records with composed `Employee` and project-owned `EventType` values | Implemented as device-specific normalisation |
+| 3. Canonicalisation and filtering | `attendance_etl.transform.transformation_strategy` | Normalised source/device records and `TimeRange` | Filtered `AttendanceEvent` objects | Implemented by the transformation strategy template method |
 | 4. Event publication | `attendance_etl.messaging.pubsub`, orchestrated by `attendance_etl.pi4.workflow` | Review-period requests, review-sheet requests, and attendance record payloads | JSON messages on Google Pub/Sub topics | Implemented with transitional attendance record payloads |
 | 5. Backend / serverless processing | Google Cloud Functions deployment wrappers under `src/backend/*/main.py`, delegating to `attendance_etl.functions` | Google Pub/Sub event payloads | Review-period responses, review-sheet metadata, stored attendance updates, and last-stored timestamps | Implemented for current review-period, review-sheet, and attendance-record workflows |
 | 6. Persistence / review output | `src/attendance_etl/functions/store_attend_records.py` and Google Sheets APIs | Attendance record messages and review sheet metadata | Google Sheets raw data, daily attendance, weekly summary, and last-stored timestamp response | Implemented for Google Sheets attendance review output |
@@ -35,40 +35,40 @@ Raspberry Pi 4 entry point remains available as `src/pi4/pi4_client.py` and dele
 `attendance_etl.ingestion.client` to the Pi runtime modules.
 
 - Purpose: collect device users and attendance punches from the biometric source.
-- Current implementation: `attendance_etl.device.zkteco.pull_records_from_device()` connects to the ZKTeco
-  device, disables it during reads, fetches users and attendance records, then re-enables and disconnects.
+- Current implementation: `ZKTecoDevice.extract_biometric_data()` connects to the ZKTeco device, disables it
+  during reads, fetches users and attendance records, then re-enables and disconnects.
 - Input: configured `site_id`, device vendor, and vendor-specific connection options.
-- Output: raw user records and raw attendance records from the device library.
+- Output: `ExtractedBiometricData` containing raw user records and raw attendance records from the device
+  library.
 - Limitation: the current extraction path is ZKTeco-specific and still tied to the device-oriented ingestion
   workflow.
 
 ### 2. Raw Record Normalisation
 
-The ingestion client filters records for the active review window and decodes the device-specific shape into
-Python dictionaries used by the current storage workflow.
+The workflow supplies raw biometric data to `TransformationStrategy.transform(...)`. ZKTeco-specific
+normalisation is performed by `ZKTecoTransformationStrategy.normalise(...)`; timestamp filtering is performed
+by `TransformationStrategy.filter(...)`.
 
-- Purpose: remove already-stored records and make ZKTeco records usable by downstream code.
-- Current implementation: `filter_records()`, `convert_to_map()`, `convert_to_dict()`, and
-  `decode_zk_format()` in `attendance_etl.transform.zkteco_records`.
-- Input: raw device users, raw attendance records, review start timestamp, optional review end timestamp, and
-  configured `site_id`.
-- Output: transitional records with timestamp, employee display name, source `site_id`, and entry type.
-- Limitation: this stage produces the current storage payload shape, not the full canonical attendance event
-  contract.
+- Purpose: correlate raw ZKTeco attendance records with raw ZKTeco users and convert ZKTeco punch values into
+  project-owned attendance event types.
+- Current implementation: `ZKTecoTransformationStrategy.normalise(...)` uses a local temporary lookup for user
+  correlation, and `TransformationStrategy.filter(...)` applies the timestamp range.
+- Input: raw device users, raw attendance records, review start timestamp, optional effective end timestamp,
+  and configured `site_id`.
+- Output: filtered `AttendanceEvent` objects.
 
-### 3. Canonicalisation
+### 3. Canonicalisation And Filtering
 
-Canonicalisation is the intended transformation from source/device records into the documented
-[canonical attendance event](contracts/canonical-attendance-event.md) contract.
+Canonicalisation converts normalised attendance into the documented
+[canonical attendance event](contracts/canonical-attendance-event.md) internal model.
 
 - Purpose: provide a stable internal event shape for downstream publication, processing, and future storage.
-- Current status: the canonical attendance event contract is documented, and the architecture diagram
-  references it as the intended canonical event target.
+- Current status: the canonical `AttendanceEvent` model is produced by transformation and then serialised by
+  `AttendanceEvent.to_dict()` for the current backend-compatible Pub/Sub payload.
 - Input: normalised source/device records.
-- Output: canonical attendance event fields such as `event_id`, `source_device_id`, `employee_id`,
-  `event_timestamp`, `event_type`, and `ingested_at`.
-- Limitation: runtime publishing still sends transitional attendance record dictionaries, so canonicalisation is
-  not yet enforced end to end.
+- Output: canonical internal fields `site_id`, `employee`, `event_type`, and `timestamp`.
+- Limitation: runtime publishing still sends backend-compatible attendance record dictionaries produced by
+  `AttendanceEvent.to_dict()`, not a richer future canonical wire payload.
 
 ### 4. Event Publication
 

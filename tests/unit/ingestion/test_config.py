@@ -12,6 +12,10 @@ class DeviceStub:
     pass
 
 
+class StrategyStub:
+    pass
+
+
 class MessengerSpy:
     def __init__(self):
         self.published = []
@@ -58,6 +62,7 @@ class ConfigTests(unittest.TestCase):
         workflow = Pi4Workflow(
             state,
             DeviceStub(),
+            StrategyStub(),
             messenger,
         )
 

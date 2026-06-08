@@ -1,10 +1,41 @@
+import ast
 import inspect
 import unittest
 from datetime import datetime
+from pathlib import Path
 
 from attendance_etl.devices.biometric_device import BiometricDevice
 from attendance_etl.devices.biometric_device_config import ZKTecoOptions
 from attendance_etl.devices import zkteco_device
+from attendance_etl.transform import ExtractedBiometricData
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+ZKTECO_DEVICE_PATH = REPO_ROOT / "src/attendance_etl/devices/zkteco_device.py"
+
+
+def imported_modules(path):
+    module_names = set()
+    tree = ast.parse(path.read_text(), filename=str(path))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            module_names.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            module_names.add(node.module)
+            module_names.update("{}.".format(node.module) + alias.name for alias in node.names)
+
+    return module_names
+
+
+def calls_named(path, name):
+    tree = ast.parse(path.read_text(), filename=str(path))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Name) and node.func.id == name:
+                return True
+            if isinstance(node.func, ast.Attribute) and node.func.attr == name:
+                return True
+
+    return False
 
 
 class FakeUser:
@@ -113,10 +144,10 @@ class ZKTecoDeviceTests(unittest.TestCase):
             if callable(value) and not name.startswith("_")
         }
 
-        self.assertEqual(public_methods, {"extract_attendance_records", "pull_records", "clear_records"})
+        self.assertEqual(public_methods, {"extract_biometric_data", "pull_records", "clear_records"})
         self.assertEqual(
-            list(inspect.signature(zkteco_device.ZKTecoDevice.extract_attendance_records).parameters),
-            ["self", "from_date", "to_date"],
+            list(inspect.signature(zkteco_device.ZKTecoDevice.extract_biometric_data).parameters),
+            ["self"],
         )
         self.assertEqual(list(inspect.signature(zkteco_device.ZKTecoDevice.pull_records).parameters), ["self"])
         self.assertEqual(list(inspect.signature(zkteco_device.ZKTecoDevice.clear_records).parameters), ["self"])
@@ -142,28 +173,18 @@ class ZKTecoDeviceTests(unittest.TestCase):
             ],
         )
 
-    def test_extract_attendance_records_owns_zkteco_extraction_sequence(self):
+    def test_extract_biometric_data_returns_raw_extracted_biometric_data(self):
         ZKSpy.users = [FakeUser(100, "Ada Lovelace")]
         ZKSpy.records = [
             FakeAttendanceRecord(100, datetime(2026, 5, 27, 7, 59, 59), 0),
             FakeAttendanceRecord(100, datetime(2026, 5, 27, 8, 1, 0), 1),
         ]
 
-        records = zkteco_device.ZKTecoDevice("munich-office", self.zkteco_options()).extract_attendance_records(
-            datetime(2026, 5, 27, 8, 0, 0)
-        )
+        raw_data = zkteco_device.ZKTecoDevice("munich-office", self.zkteco_options()).extract_biometric_data()
 
-        self.assertEqual(
-            records,
-            [
-                {
-                    "username": "Ada Lovelace",
-                    "timestamp": "27-05-2026 08:01:00",
-                    "entry": "Check Out",
-                    "device": "munich-office",
-                }
-            ],
-        )
+        self.assertIsInstance(raw_data, ExtractedBiometricData)
+        self.assertEqual(raw_data.employees, ZKSpy.users)
+        self.assertEqual(raw_data.attendance_records, ZKSpy.records)
         self.assertEqual(
             ZKSpy.events,
             [
@@ -177,6 +198,18 @@ class ZKTecoDeviceTests(unittest.TestCase):
                 "disconnect",
             ],
         )
+
+    def test_zkteco_device_does_not_own_filtering_decoding_or_user_correlation(self):
+        imported = imported_modules(ZKTECO_DEVICE_PATH)
+
+        self.assertNotIn("attendance_etl.transform.zkteco_records", imported)
+        self.assertNotIn("attendance_etl.transform.zkteco_records.convert_to_map", imported)
+        self.assertNotIn("attendance_etl.transform.zkteco_records.decode_zk_format", imported)
+        self.assertNotIn("attendance_etl.transform.zkteco_records.filter_records", imported)
+        self.assertFalse(calls_named(ZKTECO_DEVICE_PATH, "convert_to_map"))
+        self.assertFalse(calls_named(ZKTECO_DEVICE_PATH, "decode_zk_format"))
+        self.assertFalse(calls_named(ZKTECO_DEVICE_PATH, "filter_records"))
+        self.assertFalse(calls_named(ZKTECO_DEVICE_PATH, "to_dict"))
 
     def test_clear_records_preserves_connection_lifecycle(self):
         zkteco_device.ZKTecoDevice("munich-office", self.zkteco_options()).clear_records()
