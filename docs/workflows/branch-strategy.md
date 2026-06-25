@@ -1,5 +1,13 @@
 # Branch Strategy
 
+## Status
+
+Accepted
+
+## Lifecycle
+
+Active
+
 ## Primary Branches
 
 ### main

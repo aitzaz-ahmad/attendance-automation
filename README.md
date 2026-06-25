@@ -20,7 +20,7 @@ run, validate, and evolve.
 ## System Overview
 
 The system is organized around the canonical Python package namespace `attendance_etl`, with ingestion
-runtime modules split across `attendance_etl.device`, `attendance_etl.transform`, `attendance_etl.messaging`,
+runtime modules split across `attendance_etl.devices`, `attendance_etl.transform`, `attendance_etl.messaging`,
 `attendance_etl.storage`, and `attendance_etl.pi4`. Google Cloud Function logic lives under
 `attendance_etl.functions`.
 
@@ -54,32 +54,10 @@ For the ordered stage-by-stage pipeline, including current implementation paths 
 ## Biometric Device Configuration
 
 The Raspberry Pi ingestion runtime loads biometric device configuration from
-`biometric_device_config.json`.
-
-For the current ZKTeco device path, the configuration shape is:
-
-```json
-{
-  "site_id": "munich-office",
-  "vendor": "zkteco",
-  "device_options": {
-    "ip_address": "192.168.1.201",
-    "comm_port": 4370,
-    "timeout": 10,
-    "force_udp": false,
-    "ommit_ping": false
-  }
-}
-```
-
-`site_id` identifies the office, site, or location from which attendance records
-are extracted. It is deployment/domain metadata on `BiometricDeviceConfig`,
-independent of the biometric device vendor and communication mechanism.
-
-`vendor` selects the biometric device implementation. `device_options` contains
-vendor-specific connection metadata; for ZKTeco devices, `ip_address`,
-`comm_port`, `timeout`, `force_udp`, and `ommit_ping` remain ZKTeco-specific
-options.
+`biometric_device_config.json`. The current concrete device path is ZKTeco.
+Configuration shape, required fields, vendor-specific option ownership, startup
+validation, and fail-fast rules are defined in
+[Biometric Device Configuration](docs/specifications/biometric-device-configuration.md).
 
 ## Reliability Mechanisms
 
@@ -88,14 +66,14 @@ recovery behaviour designed to resume from the last checkpointed non-waiting sta
 
 ![Raspberry Pi client finite state machine](docs/diagrams/pi4-client-fsm.png "Raspberry Pi client finite state machine")
 
-For the detailed recovery model, see [Reliability Model](docs/reliability.md).
+For the detailed recovery model, see [Reliability Model](docs/specifications/reliability-model.md).
 
 ## Current Implementation
 
 The repository currently contains:
 
 - A Python `src/` layout with the canonical package namespace `attendance_etl`.
-- Ingestion runtime modules under `src/attendance_etl/{device,transform,messaging,storage,pi4}/`, with a
+- Ingestion runtime modules under `src/attendance_etl/{devices,transform,messaging,storage,pi4}/`, with a
   compatibility facade at `src/attendance_etl/ingestion/client.py`.
 - Google Cloud Function implementation modules under `src/attendance_etl/functions/`.
 - Google Cloud Function deployment wrappers under `src/backend/*/main.py`.
@@ -123,7 +101,8 @@ Key repository references:
 - [Documentation index](docs/README.md)
 - [Architecture](docs/architecture.md)
 - [Data pipeline](docs/data-pipeline.md)
-- [Reliability model](docs/reliability.md)
+- [Biometric device configuration](docs/specifications/biometric-device-configuration.md)
+- [Reliability model](docs/specifications/reliability-model.md)
 - [Canonical attendance event contract](docs/contracts/canonical-attendance-event.md)
 - [Future work](docs/future-work.md)
 - [CI workflow](.github/workflows/ci.yml)

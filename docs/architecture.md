@@ -1,5 +1,13 @@
 # Architecture
 
+## Status
+
+Accepted
+
+## Lifecycle
+
+Active
+
 ## System Overview
 
 Attendance Automation is an ETL-oriented attendance pipeline for moving records from a ZKTeco biometric
@@ -56,7 +64,7 @@ flowchart LR
 ```
 
 The README also includes a high-level [architecture diagram](diagrams/high-level-architecture.png). The ingestion reliability [state machine](diagrams/pi4-client-fsm.png) is documented separately and summarized in
-[Reliability Model](reliability.md).
+[Reliability Model](specifications/reliability-model.md).
 
 ## Component Model
 
@@ -87,6 +95,9 @@ The Raspberry Pi ingestion client is split into focused package modules:
 - `attendance_etl.devices.biometric_device_factory` owns concrete biometric device construction.
 - `attendance_etl.devices.zkteco_device` owns ZKTeco SDK integration, ZKTeco connection lifecycle, device
   reads, attendance clearing, and ZKTeco implementation-level defaults.
+- Biometric device configuration shape, vendor option ownership, startup validation, and fail-fast
+  configuration rules are defined in
+  [Biometric Device Configuration](specifications/biometric-device-configuration.md).
 - `attendance_etl.transform.zkteco_transformation_strategy` owns ZKTeco user correlation and punch
   normalisation. Timestamp filtering is owned by `TransformationStrategy.filter(...)`, and
   backend-compatible payload serialisation is owned by `AttendanceEvent.to_dict()`.
@@ -95,8 +106,9 @@ The Raspberry Pi ingestion client is split into focused package modules:
 - `attendance_etl.config` owns shared runtime configuration constants such as Pub/Sub names, local runtime
   files, and polling intervals. Vendor-specific biometric device options do not belong in global
   ingestion-client configuration.
-- `attendance_etl.messaging.pubsub` owns Pub/Sub publication, subscriptions, targeted pulls, ACKs, and message
-  decoding.
+- `attendance_etl.messaging` owns the project messaging boundary. The target public abstraction is
+  `Messenger`, with Google Pub/Sub isolated behind `GooglePubSubMessenger`; transport contracts are defined
+  in the [Messaging Model](specifications/messaging-model.md).
 - `attendance_etl.storage.snapshot` and `attendance_etl.storage.review_period` own the existing JSON files.
 - `attendance_etl.pi4.state`, `attendance_etl.pi4.workflow`, and `attendance_etl.pi4.runtime` own Pi state,
   finite-state-machine behavior, and runtime composition.
@@ -105,107 +117,46 @@ The Raspberry Pi ingestion client is split into focused package modules:
 The ingestion runtime currently publishes transitional attendance dictionaries. Runtime enforcement of the
 canonical attendance event contract is future work.
 
-### Biometric Device Configuration Object Model
+### Biometric Device Configuration Topology
 
-The intended biometric device configuration model keeps the root runtime
-configuration vendor-neutral:
+Architecture owns where biometric device configuration participates in the
+system. Configuration shape, required fields, vendor-specific options, startup
+validation, and fail-fast rules are defined in
+[Biometric Device Configuration](specifications/biometric-device-configuration.md).
+
+Runtime orchestration composes the workflow after loading validated biometric
+device configuration:
 
 ```text
-VendorOptions
-    ↑
-    |
-ZKTecoOptions
-
+Pi runtime
+    ↓
+BiometricDeviceConfigBuilder or equivalent loader
+    ↓
 BiometricDeviceConfig
-    site_id: str
-    vendor: str
-    device_options: VendorOptions
-
-ZKTecoOptions
-    ip_address: str
-    comm_port: int
-    timeout: Optional[int]
-    force_udp: Optional[bool]
-    ommit_ping: Optional[bool]
+    ↓
+BiometricDeviceFactory
+    ↓
+BiometricDevice
 ```
 
-`BiometricDeviceConfig` is the runtime-facing configuration representation. It
-contains `site_id`, `vendor`, and `device_options`, and it must not expose
-ZKTeco-specific fields directly.
-
-`site_id` identifies the office, site, or location from which attendance records
-are extracted. It is deployment/domain metadata, independent of the biometric
-device vendor and communication mechanism. It may later be propagated into
-canonical attendance records as source-site metadata.
-
-`BiometricDeviceConfig.site_id` is the source of the commissioned device runtime
-identity. `BiometricDeviceFactory` passes this value into concrete
-`BiometricDevice` instances during construction. Because a `BiometricDevice`
-already owns its site identity, runtime callers must not pass `site_id` into
-`extract_attendance_records(...)`.
-
-`vendor` selects the biometric device implementation.
-
-`device_options` contains vendor-specific connection metadata.
-
-`VendorOptions` is the base abstraction for vendor-specific configuration.
-
-`ZKTecoOptions` is the concrete vendor-options object for the current ZKTeco
-device path. ZKTeco-specific options include:
-
-- `ip_address`
-- `comm_port`
-- `timeout`
-- `force_udp`
-- `ommit_ping`
-
-These options belong to `ZKTecoOptions` and `ZKTecoDevice`, not to global
-`attendance_etl.config` and not to root deployment metadata such as `site_id`.
-
-If optional ZKTeco options are absent from the biometric device configuration
-file, `ZKTecoDevice` owns initialising them with implementation-level defaults.
-
-### Configuration And Device Construction Boundaries
-
-Runtime orchestration is responsible for composing and running the workflow.
-
-It may depend on `BiometricDeviceConfig` and `BiometricDevice`, but it should not
-depend on `ZKTecoDevice` directly.
-
-The ownership boundaries are:
-
-- Runtime: orchestration only.
-- `BiometricDeviceConfigBuilder` or equivalent loader: JSON loading, required
-  root field validation, vendor selection validation, vendor-options validation,
-  and construction of the correct `VendorOptions` object.
-- `BiometricDeviceConfig`: biometric device configuration representation with
-  root deployment/domain metadata, vendor selection metadata, and vendor options.
-- `VendorOptions`: vendor-specific configuration abstraction.
-- `ZKTecoOptions`: ZKTeco-specific connection options.
-- `BiometricDeviceFactory`: concrete `BiometricDevice` construction from a
-  validated `BiometricDeviceConfig`, including passing root `site_id` into the
-  commissioned device instance.
-- `ZKTecoDevice`: pyzk integration, device communication, extraction, clearing,
-  and ZKTeco-specific implementation defaults.
-
-Configuration loading/building and concrete device construction are separate
-responsibilities.
+Runtime may depend on `BiometricDeviceConfig` and `BiometricDevice`, but it
+should not depend on `ZKTecoDevice` directly. Configuration loading/building and
+concrete device construction remain separate responsibilities.
 
 ### Canonical Attendance Event Contract
 
-The target internal attendance payload is documented in
-[Canonical Attendance Event](contracts/canonical-attendance-event.md). It defines fields such as
-`event_id`, `source_device_id`, `employee_id`, `event_timestamp`, `event_type`, and `ingested_at`.
-
-This contract is an architecture target for transformation and downstream processing. Current runtime
-publishing has not fully adopted or validated this schema end to end.
+The attendance event payload contract is documented in
+[Canonical Attendance Event](contracts/canonical-attendance-event.md). Architecture records where that
+contract sits in the system; field definitions, serialisation shape, and schema evolution belong to the
+contract document.
 
 ### Google Pub/Sub Messaging
 
-Google Pub/Sub is the handoff boundary between the ingestion runtime and serverless backend. The ingestion
-workflow publishes JSON messages for review-period lookup, review-sheet creation, and attendance-record
-storage. Cloud Functions consume the corresponding Pub/Sub events and return workflow responses where needed,
-including the latest stored attendance timestamp.
+Google Pub/Sub is the current broker between the ingestion runtime and serverless backend. Architecture owns
+that topology and adapter placement only. Messaging topics, routing, receive timeout behaviour, transport
+validation, and ACK policy are defined in the [Messaging Model](specifications/messaging-model.md).
+Reliability ownership, including retry and recovery boundaries, is defined in the
+[Reliability Model](specifications/reliability-model.md).
 
 ### Cloud Function Deployment Wrappers
 
@@ -221,8 +172,8 @@ functions remains a current deployment constraint.
 `src/attendance_etl/functions/` contains the canonical Python implementation modules for serverless behavior.
 Current modules process review-period lookup, review-sheet creation, and attendance-record storage workflows.
 
-These modules parse the expected Pub/Sub payloads and interact with Google APIs. They do not yet enforce the
-canonical attendance event contract as a runtime schema.
+These modules parse current Pub/Sub payloads and interact with Google APIs. Payload schema ownership remains
+with [Canonical Attendance Event](contracts/canonical-attendance-event.md) and related contracts.
 
 ### Google Sheets Review Output
 
@@ -256,8 +207,8 @@ sequenceDiagram
   PubSub->>Function: Deliver Pub/Sub event
   Function->>Sheets: Create or update review sheet output
   Sheets-->>Function: Return update result
-  Function->>PubSub: Publish latest stored timestamp response
-  PubSub-->>Client: Return targeted workflow response
+  Function->>PubSub: Publish workflow response
+  PubSub-->>Client: Return response through messaging boundary
 ```
 
 ## Codebase Structure
@@ -298,5 +249,7 @@ files are deployment entry points; reusable implementation should live under `sr
 
 - [README](../README.md)
 - [Data Pipeline](data-pipeline.md)
+- [Biometric Device Configuration](specifications/biometric-device-configuration.md)
 - [Canonical Attendance Event](contracts/canonical-attendance-event.md)
-- [Reliability Model](reliability.md)
+- [Messaging Model](specifications/messaging-model.md)
+- [Reliability Model](specifications/reliability-model.md)

@@ -1,5 +1,13 @@
 # Issue Lifecycle
 
+## Status
+
+Accepted
+
+## Lifecycle
+
+Active
+
 ## Workflow States
 
 GitHub Project issues move through the following lifecycle:

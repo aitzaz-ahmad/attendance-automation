@@ -8,8 +8,10 @@ scoped issue explicitly changes them.
 
 ## Contract Documents
 
-- [Canonical attendance event](canonical-attendance-event.md): target internal payload shape for one
-  normalised attendance event extracted from a source biometric device.
+- [Canonical attendance event](canonical-attendance-event.md): sole canonical owner for the current
+  internal `AttendanceEvent` model, the current backend-compatible Pub/Sub payload, timestamp and event-type
+  serialisation, and deferred schema evolution notes for one normalised attendance event extracted from a
+  source biometric device.
 
 ## Contract Areas
 

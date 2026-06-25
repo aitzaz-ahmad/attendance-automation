@@ -2,13 +2,19 @@
 
 ## Status
 
-Draft
+Accepted
+
+## Lifecycle
+
+Active
 
 ## Purpose
 
 Define the technical contract for the concrete ZKTeco implementation of BiometricDevice.
 
-This specification exists to ensure that ZKTeco-specific SDK interaction remains isolated behind the device abstraction boundary established by ADR-0003.
+This specification exists to ensure that ZKTeco-specific SDK interaction remains isolated behind the device
+abstraction boundary established by
+[ADR-0003](../decisions/0003-device-and-transformation-layer-boundaries.md).
 
 The project uses the term BiometricDevice for the runtime-facing abstraction and concrete biometric device names for vendor-specific implementations.
 
@@ -18,9 +24,10 @@ terminal deployed at a known office site.
 
 ## Related Documents
 
-- docs/decisions/0003-device-and-transformation-layer-boundaries.md
-- docs/proposals/device-layer-abstraction.md
-- docs/specifications/biometric-device.md
+- [ADR-0003: Device And Transformation Layer Boundaries](../decisions/0003-device-and-transformation-layer-boundaries.md)
+- [Device Layer Abstraction](../proposals/device-layer-abstraction.md)
+- [Biometric Device Configuration specification](biometric-device-configuration.md)
+- [BiometricDevice specification](biometric-device.md)
 
 ## Scope
 
@@ -38,6 +45,7 @@ This specification covers:
 This specification does not cover:
 
 - BiometricDeviceFactory
+- biometric device configuration shape or startup validation
 - TransformationStrategy
 - canonicalisation
 - validation
@@ -88,7 +96,8 @@ It must satisfy the BiometricDevice contract without expanding the public runtim
 
 The runtime should interact with BiometricDevice rather than ZKTecoDevice directly.
 
-This follows the dependency inversion principles established by ADR-0003.
+This follows the dependency inversion principles established by
+[ADR-0003](../decisions/0003-device-and-transformation-layer-boundaries.md).
 
 High-level code depends on BiometricDevice.
 
@@ -136,42 +145,24 @@ These concerns belong to other architectural layers.
 
 ## ZKTeco Configuration Ownership
 
-ZKTeco-specific connection options belong to `ZKTecoOptions` or to
-`ZKTecoDevice` implementation-level defaults.
+ZKTeco connection configuration is supplied through `ZKTecoOptions` as defined
+by the
+[Biometric Device Configuration specification](biometric-device-configuration.md).
 
-They must not live as root fields on `BiometricDeviceConfig`.
+ZKTecoDevice owns vendor-specific behaviour around those options:
 
-They must not live in global ingestion-client configuration.
+- consuming `ZKTecoOptions` supplied through construction
+- keeping ZKTeco SDK interaction isolated inside the concrete device
+- initialising absent optional ZKTeco options with implementation-level defaults
 
-`site_id` is not a ZKTeco option. It belongs on `BiometricDeviceConfig` as
-deployment/domain metadata identifying the office, site, or location from which
-attendance records are extracted. It is independent of the ZKTeco communication
-mechanism.
+`site_id` is not a ZKTeco option. Its configuration ownership is defined in the
+[Biometric Device Configuration specification](biometric-device-configuration.md).
 
 `BiometricDeviceFactory` passes `BiometricDeviceConfig.site_id` into
 `ZKTecoDevice` construction. `ZKTecoDevice` inherits the read-only `site_id`
 property from `BiometricDevice` and uses that identity when decoding extracted
 attendance records. Its public `extract_attendance_records(...)` method must
 not require `site_id` as a parameter.
-
-The ZKTeco-specific options are:
-
-- `ip_address: str`
-- `comm_port: int`
-- `timeout: Optional[int]`
-- `force_udp: Optional[bool]`
-- `ommit_ping: Optional[bool]`
-
-The `ommit_ping` spelling follows the pyzk API.
-
-`ZKTecoOptions` represents values loaded from the biometric device
-configuration file.
-
-If optional ZKTeco options are absent from that file, `ZKTecoDevice` must
-initialise them using its own implementation-level defaults.
-
-The runtime and `BiometricDeviceConfig` should remain vendor-neutral and should
-not expose these ZKTeco connection fields directly.
 
 ## Dependency Rules
 

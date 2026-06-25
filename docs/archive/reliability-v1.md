@@ -1,5 +1,19 @@
 # Reliability Model
 
+## Status
+
+Archived
+
+## Lifecycle
+
+Historical
+
+> Superseded: this page is archived for historical context. The canonical
+> reliability specification is
+> [docs/specifications/reliability-model.md](../specifications/reliability-model.md).
+> New reliability documentation should update the canonical specification rather
+> than this archived v1 page.
+
 ## Overview
 
 The ingestion client is a long-running, stateful workflow for collecting attendance records from a ZKTeco

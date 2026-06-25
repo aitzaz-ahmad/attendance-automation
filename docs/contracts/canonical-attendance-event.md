@@ -1,5 +1,13 @@
 # Canonical Attendance Event
 
+## Status
+
+Accepted
+
+## Lifecycle
+
+Active
+
 The canonical attendance event is the normalised internal representation of one
 attendance event reported by a source biometric device. It is produced after
 extraction and source-specific normalisation, during transformation and normalisation, and is

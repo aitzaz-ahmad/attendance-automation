@@ -1,5 +1,9 @@
 # Domain Model Adoption Principles
 
+## Status
+
+Accepted
+
 ## Context
 
 ETLP-24 introduced the following domain models:

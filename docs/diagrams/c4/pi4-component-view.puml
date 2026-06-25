@@ -1,0 +1,89 @@
+@startuml Attendance_Automation_Pi4_Component_View
+!include <C4/C4_Component>
+
+title Attendance Automation - Pi4 Client Component View
+
+LAYOUT_WITH_LEGEND()
+
+System_Ext(zkteco_terminal, "ZKTeco Biometric Device", "External biometric terminal accessed through the ZKTeco SDK.")
+System_Ext(google_pubsub, "Google Pub/Sub", "External broker used behind the Google messaging adapter.")
+
+Container_Boundary(pi4_client, "Raspberry Pi 4 Client") {
+  Component(pi4_runtime, "Pi4Runtime", "attendance_etl.pi4.runtime", "Composition root that loads configuration and persistence, creates dependencies, and starts Pi4Workflow.")
+  Component(pi4_workflow, "Pi4Workflow", "attendance_etl.pi4.workflow", "Coordinates business actions across device extraction, transformation, messaging, and runtime state.")
+
+  Boundary(future_fsm_boundary, "Future FSM Abstraction (planned)", "Planned boundary") {
+    Component(future_fsm, "FSM Policy", "Planned", "Owns states, transitions, waiting-state checkpoint policy, and transition outcomes without business side effects.")
+  }
+
+  Boundary(persistence_boundary, "Runtime-State Persistence", "Current") {
+    Component(runtime_state, "RuntimeState", "Domain model", "Serializes checkpoint state: pi4 state, system flags, review sheet id, and last stored timestamp.")
+    Component(review_period, "ReviewPeriod", "Domain model", "Serializes active review-period dates and related metadata.")
+    Component(snapshot_review_persistence, "Snapshot / Review-Period Persistence", "JSON files", "Owns local file I/O for snapshot.json and review_period.json.")
+  }
+
+  Boundary(device_boundary, "Device Layer", "Current") {
+    Component(biometric_device_factory, "BiometricDeviceFactory", "attendance_etl.devices", "Creates the concrete BiometricDevice from validated BiometricDeviceConfig.")
+    Component(biometric_device, "BiometricDevice", "Project-owned abstraction", "Runtime-facing contract for extracting raw biometric data and clearing device records.")
+    Component(zkteco_device, "ZKTecoDevice", "ZKTeco implementation", "Implements BiometricDevice and owns pyzk imports, connection lifecycle, reads, and record clearing.")
+  }
+
+  Boundary(transformation_boundary, "Transformation Layer", "Current Milestone 4") {
+    Component(transformation_strategy_factory, "TransformationStrategyFactory", "attendance_etl.transform", "Creates the concrete TransformationStrategy for the configured device vendor.")
+    Component(transformation_strategy, "TransformationStrategy", "Template method abstraction", "Owns validation, canonicalisation, and filtering after concrete normalisation.")
+    Component(zkteco_transformation_strategy, "ZKTecoTransformationStrategy", "ZKTeco implementation", "Owns ZKTeco-specific employee correlation and punch normalisation.")
+    Component(transformation_request, "TransformationRequest", "Input contract", "Groups raw biometric data, site id, and TimeRange for transformation.")
+    Component(extracted_biometric_data, "ExtractedBiometricData", "Raw data contract", "Contains raw employees and raw attendance records returned by BiometricDevice.")
+    Component(normalised_attendance, "NormalisedAttendance", "Internal transformation model", "Represents employee, event type, and timestamp before canonical AttendanceEvent creation.")
+    Component(attendance_event, "AttendanceEvent", "Domain model", "Canonical internal attendance event produced by the transformation layer.")
+    Component(attendance_event_to_dict, "AttendanceEvent.to_dict()", "Serialization boundary", "Emits the current backend-compatible attendance payload for Pub/Sub publication.")
+  }
+
+  Boundary(messaging_boundary, "Messaging Boundary (planned Milestone 5)", "Planned boundary") {
+    Component(messenger, "Messenger", "Project-owned abstraction", "Public workflow messaging interface for application topics and decoded payloads.")
+    Component(topic_resolver, "TopicResolver", "Project-owned abstraction", "Resolves application-level MessageTopic values to provider topic names.")
+    Component(message_topic, "MessageTopic", "Enum", "Application-level topic vocabulary.")
+
+    Component(google_pubsub_messenger, "GooglePubSubMessenger", "Concrete adapter", "Google Pub/Sub implementation of Messenger for provider topic, subscription, and receive mechanics.")
+    Component(google_topic_resolver, "GoogleTopicResolver", "Adapter", "Google Pub/Sub topic resolver.")
+    Component(messenger_factory, "MessengerFactory", "Factory", "Creates the configured Messenger stack.")
+  }
+}
+
+Rel(pi4_runtime, biometric_device_factory, "Creates BiometricDevice")
+Rel(pi4_runtime, transformation_strategy_factory, "Creates TransformationStrategy")
+Rel(pi4_runtime, messenger, "Composes workflow messenger")
+Rel(pi4_runtime, snapshot_review_persistence, "Loads persisted RuntimeState and ReviewPeriod")
+Rel(pi4_runtime, pi4_workflow, "Starts workflow with composed dependencies")
+
+Rel(pi4_workflow, biometric_device, "Extracts raw biometric data and clears records when safe")
+Rel(pi4_workflow, transformation_strategy, "Transforms raw data into canonical attendance events")
+Rel(pi4_workflow, messenger, "Publishes requests and receives workflow responses")
+Rel(pi4_workflow, runtime_state, "Captures checkpoint state")
+Rel(pi4_workflow, review_period, "Uses active review-period metadata")
+Rel(pi4_workflow, future_fsm, "Planned separation between workflow actions and FSM policy")
+
+Rel(snapshot_review_persistence, runtime_state, "Serializes and deserializes")
+Rel(snapshot_review_persistence, review_period, "Serializes and deserializes")
+
+Rel(biometric_device_factory, zkteco_device, "Constructs current vendor implementation")
+Rel(zkteco_device, biometric_device, "Implements")
+Rel(zkteco_device, zkteco_terminal, "Reads users and attendance records; clears records", "pyzk")
+
+Rel(transformation_strategy_factory, zkteco_transformation_strategy, "Constructs current vendor strategy")
+Rel(zkteco_transformation_strategy, transformation_strategy, "Implements")
+Rel(transformation_strategy, transformation_request, "Consumes")
+Rel(transformation_request, extracted_biometric_data, "Carries raw data")
+Rel(transformation_strategy, normalised_attendance, "Produces and validates internally")
+Rel(transformation_strategy, attendance_event, "Canonicalises to")
+Rel(attendance_event, attendance_event_to_dict, "Serializes through")
+
+Rel(messenger, topic_resolver, "Uses")
+Rel(topic_resolver, message_topic, "Resolves")
+Rel(google_pubsub_messenger, messenger, "Implements")
+Rel(google_pubsub_messenger, google_pubsub, "Uses provider transport for requests and mixed-routed responses")
+Rel(google_topic_resolver, topic_resolver, "Implements")
+Rel(messenger_factory, google_topic_resolver, "Creates Google topic resolver")
+Rel(messenger_factory, google_pubsub_messenger, "Creates Google Messenger adapter and injects topic resolver")
+
+@enduml

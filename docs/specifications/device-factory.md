@@ -2,7 +2,11 @@
 
 ## Status
 
-Draft
+Accepted
+
+## Lifecycle
+
+Active
 
 ## Purpose
 
@@ -14,10 +18,11 @@ It prevents runtime orchestration from depending directly on concrete biometric 
 
 ## Related Documents
 
-- docs/decisions/0003-device-and-transformation-layer-boundaries.md
-- docs/proposals/device-layer-abstraction.md
-- docs/specifications/biometric-device.md
-- docs/specifications/zkteco-device.md
+- [ADR-0003: Device And Transformation Layer Boundaries](../decisions/0003-device-and-transformation-layer-boundaries.md)
+- [Device Layer Abstraction](../proposals/device-layer-abstraction.md)
+- [Biometric Device Configuration specification](biometric-device-configuration.md)
+- [BiometricDevice specification](biometric-device.md)
+- [ZKTecoDevice specification](zkteco-device.md)
 
 ## Terminology
 
@@ -55,12 +60,15 @@ This specification covers:
 - biometric device construction
 - biometric device selection
 - factory responsibilities
+- relationship to validated biometric device configuration
 - dependency rules
 - testing expectations
 
 This specification does not cover:
 
+- biometric device configuration shape
 - JSON configuration loading
+- startup configuration validation
 - plugin systems
 - registry frameworks
 - dependency injection containers
@@ -119,61 +127,29 @@ BiometricDeviceFactory must not import:
 
 ## Configuration Contract
 
-The factory consumes a validated `BiometricDeviceConfig`.
+The factory consumes a validated `BiometricDeviceConfig` as defined by the
+[Biometric Device Configuration specification](biometric-device-configuration.md).
 
-`BiometricDeviceConfig` is vendor-neutral at the root level and contains:
+The factory owns construction behaviour after validation:
 
-    site_id: str
-    vendor: str
-    device_options: VendorOptions
+- selecting the concrete biometric device implementation from the validated
+  vendor value
+- deriving constructor inputs from validated vendor options
+- passing root `BiometricDeviceConfig.site_id` into the concrete
+  `BiometricDevice`
+- returning the constructed instance as `BiometricDevice`
 
-`BiometricDeviceConfig` must not expose ZKTeco-specific fields directly.
+The factory does not own the configuration schema, JSON loading, required-field
+validation, vendor-specific option validation, or optional ZKTeco default
+initialisation.
 
-`site_id` identifies the office, site, or location from which attendance records
-are extracted. It is deployment/domain metadata and does not belong inside
-`VendorOptions` or `ZKTecoOptions`.
-
-The factory passes `BiometricDeviceConfig.site_id` into the concrete
-`BiometricDevice` during construction. The constructed device then exposes
-`site_id` as read-only runtime identity.
-
-`vendor` selects the biometric device implementation.
-
-`device_options` contains vendor-specific connection metadata.
-
-Vendor-specific configuration belongs behind `VendorOptions`.
-
-The current ZKTeco implementation uses `ZKTecoOptions` for ZKTeco-specific
-connection options:
-
-    ip_address: str
-    comm_port: int
-    timeout: Optional[int]
-    force_udp: Optional[bool]
-    ommit_ping: Optional[bool]
-
-Configuration loading and validation are owned by `BiometricDeviceConfigBuilder`
-or an equivalent loader, not by the factory.
-
-The loader is responsible for:
-
-- reading the JSON configuration file
-- rejecting missing or unreadable files
-- rejecting invalid JSON
-- validating required root fields
-- validating supported vendors
-- validating vendor-specific options
-- constructing the correct `VendorOptions` object
+For ZKTeco, root `site_id` remains separate from `ZKTecoOptions`; it must not be
+folded into vendor options.
 
 ## Vendor Selection
 
-Biometric device selection is driven by the configuration field:
-
-    vendor
-
-Example:
-
-    vendor = "zkteco"
+Biometric device selection is driven by the validated
+`BiometricDeviceConfig.vendor` value.
 
 Unsupported vendors should fail clearly.
 
@@ -181,15 +157,9 @@ The factory should never silently fall back to another implementation.
 
 ## Configuration
 
-ETLP-27 introduces explicit vendor selection.
-
-Example:
-
-    vendor = "zkteco"
-
-The current implementation supports only:
-
-    zkteco
+ETLP-27 introduces explicit vendor selection. The current supported vendor value
+is defined in the
+[Biometric Device Configuration specification](biometric-device-configuration.md).
 
 Additional vendors may be added in future milestones.
 
@@ -207,9 +177,6 @@ The factory should return the abstraction rather than a concrete implementation 
 
 The exact constructor parameters should be derived from the validated
 `BiometricDeviceConfig` and its `device_options`.
-
-For ZKTeco, the factory passes root `site_id` separately from `ZKTecoOptions`.
-`site_id` must not be folded into vendor options.
 
 The factory should remain simple and explicit.
 
@@ -258,9 +225,11 @@ ETLP-27 tests should verify:
 - factory can construct the current ZKTecoDevice
 - unsupported vendor selections fail clearly
 - runtime no longer imports or constructs ZKTecoDevice directly
-- factory consumes BiometricDeviceConfig rather than raw ZKTeco fields
+- factory consumes `BiometricDeviceConfig` rather than raw ZKTeco fields
 - factory passes BiometricDeviceConfig.site_id into the returned BiometricDevice
 - configuration loading and validation are tested outside the factory boundary
+  against the
+  [Biometric Device Configuration specification](biometric-device-configuration.md)
 - site_id remains root-level BiometricDeviceConfig metadata and is not passed as
   a ZKTeco connection option
 - no plugin system, registry framework, or dependency injection container is introduced
@@ -349,9 +318,8 @@ ETLP-27 is complete when:
 - no new code uses previous device-layer terminology outside explicit migration notes
 - vendor selection logic is not scattered
 - unsupported vendors fail clearly
-- root biometric device configuration remains vendor-neutral
-- site_id remains root-level deployment/domain metadata
+- the factory respects the
+  [Biometric Device Configuration specification](biometric-device-configuration.md)
 - constructed BiometricDevice instances expose read-only site_id
-- ZKTeco-specific options do not live in global ingestion-client configuration
 - configuration loading is separate from concrete device construction
 - existing runtime behaviour remains unchanged

@@ -1,8 +1,15 @@
 # Device Layer Abstraction
 
+> Status: Accepted.
+> Lifecycle: Implemented / Evolved. This implemented milestone strategy is retained for context; current device behaviour is traceable through ADR-0003 and the device specifications.
+
 ## Status
 
-Approved
+Accepted
+
+## Lifecycle
+
+Implemented / Evolved
 
 ## Summary
 
@@ -511,3 +518,42 @@ Deferred to Milestone 4:
 - [ADR-0002: Model Adoption Principles](../decisions/0002-model-adoption-principles.md)
 - [ADR-0003: Device & Transformation Layer Boundaries](../decisions/0003-device-and-transformation-layer-boundaries.md)
 - [Proposal: Transformation Layer](transformation-layer.md)
+
+## Appendix: Implementation Evolution
+
+After the device layer was implemented, later documentation split the implemented
+strategy into more precise current contracts.
+
+What changed after implementation:
+
+- `BiometricDevice`, `ZKTecoDevice`, and `BiometricDeviceFactory` gained
+  dedicated specifications.
+- Device configuration and factory construction became explicit specification
+  concerns rather than proposal-only guidance.
+- Transformation responsibilities moved fully to the transformation proposal and
+  `TransformationStrategy` specification.
+- AttendanceEvent schema and backend-compatible payload details moved to the
+  canonical attendance event contract.
+
+Why it changed:
+
+The proposal established the device boundary as an implementation strategy.
+After implementation, the repository needed stable current-state contracts for
+runtime-facing device access, concrete ZKTeco behaviour, and factory
+construction while keeping transformation concerns outside the device layer.
+
+Accepted ADRs:
+
+- [ADR-0003: Device And Transformation Layer Boundaries](../decisions/0003-device-and-transformation-layer-boundaries.md)
+
+Current specifications and contracts:
+
+- [BiometricDevice Specification](../specifications/biometric-device.md)
+- [BiometricDeviceFactory Specification](../specifications/device-factory.md)
+- [ZKTecoDevice Specification](../specifications/zkteco-device.md)
+- [TransformationStrategy Specification](../specifications/transformation-strategy.md)
+- [Canonical Attendance Event](../contracts/canonical-attendance-event.md)
+
+Newer proposals:
+
+- [Transformation Layer](transformation-layer.md)

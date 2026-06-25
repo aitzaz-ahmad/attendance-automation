@@ -1,5 +1,13 @@
 # Workflows
 
+## Status
+
+Accepted
+
+## Lifecycle
+
+Active
+
 This directory contains repository workflow documents used by humans and AI agents.
 
 These documents define operational process boundaries for issue execution,
