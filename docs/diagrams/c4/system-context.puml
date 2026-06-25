@@ -1,0 +1,37 @@
+@startuml Attendance_Automation_System_Context
+!include <C4/C4_Context>
+
+title Attendance Automation - System Context
+
+LAYOUT_WITH_LEGEND()
+
+Person(hr_ops, "HR / Operations User", "Maintains review-period inputs and reviews prepared attendance output.")
+
+System_Boundary(attendance_automation, "Attendance Automation") {
+  System(pi4_client, "Raspberry Pi 4 Client", "Long-running Python ingestion client that extracts biometric data and publishes attendance workflow events.")
+
+  System(cloud_functions, "GCP Cloud Functions", "Serverless backend handlers for review-period lookup, review-sheet creation, and attendance storage.")
+}
+
+System_Ext(zkteco_device, "ZKTeco Biometric Device", "Commissioned biometric terminal that stores employee users and attendance punches.")
+
+System_Ext(google_pubsub, "Google Pub/Sub", "Message broker for attendance workflow requests and mixed broadcast/targeted workflow responses.")
+
+System_Ext(google_sheets, "Google Sheets", "Google spreadsheet platform used for review-period inputs and reviewer-facing attendance output.")
+
+System_Ext(review_periods_sheet, "Review Periods Spreadsheet", "Spreadsheet maintained by HR with review-period dates and employee cut-off metadata.")
+
+System_Ext(attendance_review_sheet, "Attendance Review Spreadsheet", "Generated spreadsheet containing raw attendance, daily attendance, and weekly summary worksheets.")
+
+Rel(hr_ops, review_periods_sheet, "Maintains review-period data")
+Rel(pi4_client, zkteco_device, "Reads biometric users and attendance records")
+Rel(pi4_client, google_pubsub, "Publishes attendance and review workflow events")
+Rel(google_pubsub, cloud_functions, "Delivers workflow events")
+Rel(cloud_functions, google_pubsub, "Publishes workflow responses")
+Rel(cloud_functions, review_periods_sheet, "Reads review periods and cut-off metadata")
+Rel(cloud_functions, attendance_review_sheet, "Creates and updates attendance review output")
+Rel(hr_ops, attendance_review_sheet, "Reviews attendance data")
+Rel(google_sheets, review_periods_sheet, "Hosts")
+Rel(google_sheets, attendance_review_sheet, "Hosts")
+
+@enduml

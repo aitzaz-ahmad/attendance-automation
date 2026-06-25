@@ -1,0 +1,42 @@
+@startuml Attendance_Automation_Container_View
+!include <C4/C4_Container>
+
+title Attendance Automation - Container View
+
+LAYOUT_WITH_LEGEND()
+
+Person(hr_ops, "HR / Operations User", "Maintains review-period inputs and reviews prepared attendance output.")
+
+System_Ext(zkteco_device, "ZKTeco Biometric Device", "Commissioned biometric terminal storing raw users and attendance punches.")
+System_Ext(google_pubsub, "Google Pub/Sub", "External broker for workflow requests and mixed broadcast/targeted responses.")
+System_Ext(google_sheets, "Google Sheets", "Spreadsheet platform for review-period source data and attendance review output.")
+System_Ext(review_periods_sheet, "Review Periods Spreadsheet", "HR-maintained review-period and employee cut-off spreadsheet.")
+System_Ext(attendance_review_sheet, "Attendance Review Spreadsheet", "Generated review spreadsheet with raw, daily, and weekly worksheets.")
+
+System_Boundary(attendance_automation, "Attendance Automation") {
+  Container(pi4_runtime_workflow, "Pi4 Runtime / Workflow", "Python: attendance_etl.pi4", "Composes dependencies, restores checkpoints, and coordinates review and attendance business actions.")
+  Container(device_layer, "Device Layer", "Python: attendance_etl.devices", "Provides BiometricDevice, BiometricDeviceFactory, and ZKTecoDevice extraction while hiding SDK mechanics.")
+  Container(transformation_layer, "Transformation Layer", "Python: attendance_etl.transform and attendance_etl.models", "Turns ExtractedBiometricData into AttendanceEvent objects through normalisation, validation, canonicalisation, and filtering.")
+  Container(messaging_layer, "Messaging Layer", "Python: attendance_etl.messaging", "Project-owned Messenger boundary for workflow messaging.")
+  Container(google_pubsub_adapter, "Google Pub/Sub Adapter", "Milestone 5 target: GooglePubSubMessenger", "Concrete Messenger adapter for Google Pub/Sub topic, subscription, and provider mechanics.")
+  ContainerDb(local_runtime_state, "Local Runtime-State Storage", "JSON files", "snapshot.json and review_period.json persisted through RuntimeState and ReviewPeriod contracts.")
+  Container(backend_functions, "Backend Cloud Functions", "Python: attendance_etl.functions", "Processes Pub/Sub events, creates review sheets, stores attendance records, and publishes workflow responses.")
+}
+
+Rel(hr_ops, review_periods_sheet, "Maintains review-period data")
+Rel(hr_ops, attendance_review_sheet, "Reviews attendance output")
+Rel(pi4_runtime_workflow, device_layer, "Uses BiometricDevice to extract raw biometric data")
+Rel(device_layer, zkteco_device, "Reads users and attendance punches; clears records when safe", "pyzk")
+Rel(pi4_runtime_workflow, transformation_layer, "Submits TransformationRequest and receives AttendanceEvent objects")
+Rel(pi4_runtime_workflow, messaging_layer, "Publishes workflow requests and receives responses through Messenger")
+Rel(pi4_runtime_workflow, local_runtime_state, "Loads and saves checkpoints and active review-period metadata")
+Rel(messaging_layer, google_pubsub_adapter, "Delegates provider-specific transport")
+Rel(google_pubsub_adapter, google_pubsub, "Publishes and receives messages")
+Rel(google_pubsub, backend_functions, "Triggers backend handlers")
+Rel(backend_functions, google_pubsub, "Publishes review-period, review-sheet, and timestamp responses")
+Rel(backend_functions, review_periods_sheet, "Reads review periods and cut-off metadata")
+Rel(backend_functions, attendance_review_sheet, "Creates and updates raw, daily, and weekly worksheets")
+Rel(google_sheets, review_periods_sheet, "Hosts")
+Rel(google_sheets, attendance_review_sheet, "Hosts")
+
+@enduml

@@ -1,5 +1,13 @@
 # Validation Gates
 
+## Status
+
+Accepted
+
+## Lifecycle
+
+Active
+
 All required validation commands must pass before implementation completion,
 commit creation, or pull request review.
 

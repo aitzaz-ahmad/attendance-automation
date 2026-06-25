@@ -2,20 +2,27 @@
 
 ## Status
 
-Draft
+Accepted
+
+## Lifecycle
+
+Active
 
 ## Purpose
 
 Define the technical contract for the `BiometricDevice` abstraction.
 
-This specification exists to keep the implementation grounded in current runtime needs while aligning with ADR-0003 and the Milestone 3 device-layer proposal.
+This specification exists to keep the implementation grounded in current runtime needs while aligning with
+[ADR-0003](../decisions/0003-device-and-transformation-layer-boundaries.md) and the
+[Milestone 3 device-layer proposal](../proposals/device-layer-abstraction.md).
 
 ## Related Documents
 
-- `docs/decisions/0003-device-and-transformation-layer-boundaries.md`
-- `docs/proposals/device-layer-abstraction.md`
-- `docs/proposals/transformation-layer.md`
-- `docs/specifications/device-factory.md`
+- [ADR-0003: Device And Transformation Layer Boundaries](../decisions/0003-device-and-transformation-layer-boundaries.md)
+- [Device Layer Abstraction](../proposals/device-layer-abstraction.md)
+- [Transformation Layer](../proposals/transformation-layer.md)
+- [Biometric Device Configuration specification](biometric-device-configuration.md)
+- [BiometricDeviceFactory specification](device-factory.md)
 
 ## Terminology
 
@@ -61,6 +68,7 @@ This specification covers:
 This specification does not cover:
 
 - concrete ZKTeco implementation
+- biometric device configuration shape or startup validation
 - biometric device factory implementation
 - transformation strategy implementation
 - canonicalisation
@@ -95,7 +103,9 @@ Only operations required by current runtime behaviour should appear on the abstr
 
 Every `BiometricDevice` instance owns read-only `site_id` runtime identity. The
 value originates from `BiometricDeviceConfig.site_id` and is provided during
-construction by the composition boundary.
+construction by the composition boundary. Configuration shape and validation are
+defined in the
+[Biometric Device Configuration specification](biometric-device-configuration.md).
 
 ## Non-Responsibilities
 

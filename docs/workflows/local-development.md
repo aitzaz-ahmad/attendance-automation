@@ -1,8 +1,16 @@
 # Local Development
 
+## Status
+
+Accepted
+
+## Lifecycle
+
+Active
+
 This workflow covers fresh-clone setup and local validation before implementation
 work starts. The mandatory validation source of truth is
-`docs/workflows/validation-gates.md`.
+[Validation Gates](validation-gates.md).
 
 ## Python Version
 

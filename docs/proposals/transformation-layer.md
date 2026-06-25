@@ -1,8 +1,15 @@
 # Transformation Layer
 
+> Status: Accepted.
+> Lifecycle: Implemented / Evolved. This implemented milestone strategy is retained for context; current transformation behaviour is traceable through ADR-0003, the transformation specification, and the canonical attendance event contract.
+
 ## Status
 
-Approved
+Accepted
+
+## Lifecycle
+
+Implemented / Evolved
 
 ## Summary
 
@@ -11,6 +18,8 @@ Introduce a transformation layer responsible for converting device-specific data
 The objective of this milestone is to establish a canonical representation of attendance data while keeping transformation concerns separate from device access and runtime orchestration.
 
 This milestone implements the transformation boundary defined by ADR-0003.
+The active AttendanceEvent schema and backend-compatible payload contract are owned by
+[Canonical Attendance Event](../contracts/canonical-attendance-event.md).
 
 ## Context
 
@@ -253,6 +262,12 @@ AttendanceEvent is the only attendance model that crosses the transformation bou
 
 AttendanceEvent shall compose Employee rather than duplicating employee attributes as flattened fields.
 
+Evolution note:
+
+The current AttendanceEvent model fields, backend-compatible Pub/Sub payload, timestamp and event-type
+serialisation, and deferred schema evolution notes are defined by
+[Canonical Attendance Event](../contracts/canonical-attendance-event.md), not by this proposal.
+
 ## User Mapping Treatment
 
 ### Implementation Context
@@ -324,6 +339,12 @@ Related Issues:
 
 Define the canonical attendance model and external payload contracts produced by transformation.
 
+Evolution note:
+
+Current AttendanceEvent schema and payload authority has moved to
+[Canonical Attendance Event](../contracts/canonical-attendance-event.md). This proposal records the
+implementation strategy that introduced transformation-owned AttendanceEvent construction.
+
 ### Expected Deliverables
 
 - AttendanceEvent model construction
@@ -334,6 +355,7 @@ Define the canonical attendance model and external payload contracts produced by
 
 - Canonical AttendanceEvent objects are produced
 - AttendanceEvent serialisation and Pub/Sub payload contracts are defined
+- AttendanceEvent schema and Pub/Sub payload details remain owned by the canonical attendance event contract
 - Existing behaviour is preserved
 
 ## Phase 3 — Transformation Pipeline
@@ -401,6 +423,7 @@ Milestone 4 is considered complete when:
 - NormalisedAttendance exists as an internal transformation model
 - AttendanceEvent is the canonical attendance model
 - AttendanceEvent includes site_id as canonical event context
+- AttendanceEvent schema details remain owned by the canonical attendance event contract
 - Filtering occurs within the transformation layer
 - Shared user_mapping has been removed from runtime and workflow boundaries
 - Runtime remains device-agnostic
@@ -443,4 +466,47 @@ Deferred beyond Milestone 4:
 - [ADR-0001: Repository Modernisation](../decisions/0001-repo-modernisation-design.md)
 - [ADR-0002: Model Adoption Principles](../decisions/0002-model-adoption-principles.md)
 - [ADR-0003: Device & Transformation Layer Boundaries](../decisions/0003-device-and-transformation-layer-boundaries.md)
+- [Canonical Attendance Event](../contracts/canonical-attendance-event.md)
 - [Proposal: Device Layer Abstraction](device-layer-abstraction.md)
+
+## Appendix: Implementation Evolution
+
+After the transformation layer was implemented, later documentation separated
+the implemented strategy from the current authoritative behaviour and data
+contracts.
+
+What changed after implementation:
+
+- `TransformationStrategy.transform(...)` became the current template-method
+  contract for normalisation, validation, canonicalisation, and filtering.
+- `ZKTecoTransformationStrategy.normalise(...)` became the concrete ZKTeco
+  normalisation owner.
+- AttendanceEvent model fields, timestamp serialisation, event-type
+  serialisation, and backend-compatible Pub/Sub payload details moved to the
+  canonical attendance event contract.
+- Messaging payload transport concerns moved to the messaging model, while retry
+  and recovery concerns moved to the reliability model.
+
+Why it changed:
+
+The proposal captured how Milestone 4 should introduce transformation ownership.
+After implementation, the repository needed authoritative specifications and
+contracts that describe current behaviour without rewriting the original
+implementation plan.
+
+Accepted ADRs:
+
+- [ADR-0003: Device And Transformation Layer Boundaries](../decisions/0003-device-and-transformation-layer-boundaries.md)
+- [ADR-0005: Messaging Abstraction And Routing Boundary](../decisions/0005-messaging-abstraction-and-routing-boundary.md)
+- [ADR-0006: Reliability And Recovery](../decisions/0006-reliability-and-recovery.md)
+
+Current specifications and contracts:
+
+- [TransformationStrategy Specification](../specifications/transformation-strategy.md)
+- [Messaging Model Specification](../specifications/messaging-model.md)
+- [Reliability Model](../specifications/reliability-model.md)
+- [Canonical Attendance Event](../contracts/canonical-attendance-event.md)
+
+Newer proposals:
+
+- [Messaging Abstraction](messaging-abstraction.md)

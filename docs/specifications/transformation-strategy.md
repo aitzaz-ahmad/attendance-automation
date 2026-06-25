@@ -2,22 +2,33 @@
 
 ## Status
 
-Draft
+Accepted
+
+## Lifecycle
+
+Active
+
+The transformation strategy is implemented as the current Milestone 4 baseline.
+This specification remains the active authority for transformation behaviour;
+the canonical attendance-event data contract remains owned by
+[Canonical Attendance Event](../contracts/canonical-attendance-event.md).
 
 ## Purpose
 
 Define the technical contract for the transformation layer introduced by Milestone 4.
 
 The transformation layer converts raw biometric-device data into canonical attendance events.
+The canonical attendance-event model and backend-compatible payload schema are owned by
+[Canonical Attendance Event](../contracts/canonical-attendance-event.md).
 
 ## Related Documents
 
-- docs/decisions/0003-device-and-transformation-layer-boundaries.md
-- docs/proposals/transformation-layer.md
-- docs/specifications/biometric-device.md
-- docs/specifications/zkteco-device.md
-- docs/contracts/canonical-attendance-event.md
-- docs/diagrams/transformation-strategy.puml
+- [ADR-0003: Device And Transformation Layer Boundaries](../decisions/0003-device-and-transformation-layer-boundaries.md)
+- [Transformation Layer](../proposals/transformation-layer.md)
+- [BiometricDevice specification](biometric-device.md)
+- [ZKTecoDevice specification](zkteco-device.md)
+- [Canonical Attendance Event](../contracts/canonical-attendance-event.md)
+- [Transformation strategy diagram](../diagrams/transformation-strategy.puml)
 
 ## Scope
 
@@ -83,13 +94,17 @@ The existing implementation in:
 
 does not satisfy the Milestone 4 contract.
 
-Milestone 4 shall discard the existing AttendanceEvent implementation in its entirety, except for the timestamp serialisation contract documented below.
+Milestone 4 shall discard the existing AttendanceEvent implementation in its entirety.
 
 The existing implementation shall not be used as a basis for incremental modification or extension.
 
-A new AttendanceEvent implementation shall be written from the Milestone 4 specification and shall replace the existing implementation completely.
+A new AttendanceEvent implementation shall satisfy the Milestone 4 transformation behaviour and the canonical
+attendance event contract, replacing the existing implementation completely.
 
-Only the resulting public contract defined by this specification is considered authoritative.
+This specification is authoritative for transformation behaviour. The `AttendanceEvent` model, current
+backend-compatible Pub/Sub payload, timestamp serialisation, event-type serialisation, and deferred schema
+evolution notes are defined by
+[Canonical Attendance Event](../contracts/canonical-attendance-event.md).
 
 ## Terminology
 
@@ -273,53 +288,12 @@ Preferred call-sites:
 
 ## AttendanceEvent
 
-AttendanceEvent is the canonical attendance event model.
+AttendanceEvent is the canonical attendance event model produced by transformation.
 
-AttendanceEvent shall compose Employee rather than duplicating employee attributes as flattened fields.
-
-Expected structure:
-
-    @dataclass(frozen=True)
-    class AttendanceEvent:
-        site_id: str
-        employee: Employee
-        event_type: EventType
-        timestamp: datetime
-
-AttendanceEvent shall implement `ISerializable`.
-
-AttendanceEvent must provide:
-
-    to_dict() -> Dict[str, Any]
-
-AttendanceEvent shall preserve the existing Pub/Sub serialisation timestamp format:
-
-    ATTENDANCE_TIMESTAMP_FORMAT = "%d-%m-%Y %H:%M:%S"
-
-The timestamp value emitted by `to_dict()` shall be formatted using:
-
-    self.timestamp.strftime(ATTENDANCE_TIMESTAMP_FORMAT)
-
-AttendanceEvent shall serialise to the Pub/Sub payload shape currently expected by the messaging layer:
-
-    {
-        "username": self.employee.name,
-        "timestamp": self.timestamp.strftime(ATTENDANCE_TIMESTAMP_FORMAT),
-        "entry": self.event_type.value,
-        "device": self.site_id,
-    }
-
-
-The specification does not require any timestamp deserialisation helper.
-
-AttendanceEvent shall not implement:
-
-- `from_dict(...)`
-- legacy transitional payload support
-- flattened employee fields such as `employee_id` or `employee_name`
-- `source_device_id`
-- `raw_event_type`
-- `metadata`
+The transformation layer constructs AttendanceEvent objects during canonicalisation. The active
+`AttendanceEvent` model contract, current backend-compatible Pub/Sub payload, serialisation details, and
+deferred schema evolution notes are owned by
+[Canonical Attendance Event](../contracts/canonical-attendance-event.md).
 
 AttendanceEvent is the only model produced by the transformation layer for downstream publication.
 
@@ -327,12 +301,9 @@ AttendanceEvent is the only model produced by the transformation layer for downs
 
 EventType represents canonical attendance event types.
 
-Initial expected values:
-
-    CLOCK_IN
-    CLOCK_OUT
-
 Vendor-specific punch values must be normalised into EventType.
+The active EventType wire serialisation contract is owned by
+[Canonical Attendance Event](../contracts/canonical-attendance-event.md).
 
 ## Normalisation
 
@@ -448,11 +419,9 @@ The transformation boundary is complete when:
 - src/attendance_etl/models/employee.py contains only the Milestone 4 Employee contract
 - Employee exists only in src/attendance_etl/models/employee.py
 - Employee implements ISerializable
-- AttendanceEvent implements ISerializable
-- the existing AttendanceEvent implementation is discarded completely except for the timestamp serialisation contract
-- a new AttendanceEvent implementation is written from this specification
-- src/attendance_etl/models/attendance_event.py contains only the Milestone 4 AttendanceEvent contract
-- AttendanceEvent preserves the Pub/Sub payload shape required by the messaging layer
+- AttendanceEvent construction conforms to the canonical attendance event contract
+- the existing AttendanceEvent implementation is discarded completely
+- src/attendance_etl/models/attendance_event.py remains aligned with the canonical attendance event contract
 - no second Employee implementation is introduced
 - validation operates on NormalisedAttendance
 - canonicalisation produces AttendanceEvent

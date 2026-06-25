@@ -1,5 +1,13 @@
 # Commit Conventions
 
+## Status
+
+Accepted
+
+## Lifecycle
+
+Active
+
 ## Commit Message Format
 
 Commit format:

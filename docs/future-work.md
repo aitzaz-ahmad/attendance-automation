@@ -5,7 +5,7 @@ a committed delivery plan. Current implementation focus remains ETL correctness,
 repository boundaries.
 
 For current architecture, pipeline sequencing, reliability behavior, and event shape, see
-[Architecture](architecture.md), [Data Pipeline](data-pipeline.md), [Reliability Model](reliability.md), and
+[Architecture](architecture.md), [Data Pipeline](data-pipeline.md), [Reliability Model](specifications/reliability-model.md), and
 [Canonical Attendance Event](contracts/canonical-attendance-event.md).
 
 ## Near-Term

@@ -41,20 +41,23 @@ Each ADR should contain a status:
 
 | Status | Meaning |
 |----------|----------|
-| Proposed | Under discussion and not yet adopted |
+| Draft | Under discussion and not yet adopted |
 | Accepted | Approved and considered part of the architecture |
 | Superseded | Replaced by a newer ADR |
-| Rejected | Considered but intentionally not adopted |
+| Archived | Moved to the archive and retained only as non-active record |
 
-When an ADR is superseded, it should remain in the repository for historical context.
+When an ADR is superseded or archived, it should remain in the repository for historical context.
 
 ## Relationship To Other Documentation
 
 The documentation hierarchy is:
 
 1. ADRs explain why decisions were made.
-2. Architecture documentation explains what the system looks like.
-3. Implementation documentation explains how the system works.
+2. Specifications define what behaviour and technical contracts are required.
+3. Contracts define data and repository-level behavioural contracts.
+4. Proposals preserve how changes were intended to be implemented.
+5. Architecture documentation describes where system responsibilities live.
+6. Archive content preserves superseded or non-active material.
 
 When introducing significant architectural changes, consult the relevant ADRs before modifying the design.
 
@@ -62,9 +65,12 @@ When introducing significant architectural changes, consult the relevant ADRs be
 
 | ADR | Title | Status |
 |----------|----------|----------|
-| ADR-0001 | Repository Modernisation Design | Accepted |
-| ADR-0002 | Model Adoption Principles | Accepted |
-| ADR-0003 | Device & Transformation Layer Boundaries | Accepted |
+| [ADR-0001](0001-repo-modernisation-design.md) | Repository Modernisation Design Decisions | Accepted |
+| [ADR-0002](0002-model-adoption-principles.md) | Domain Model Adoption Principles | Accepted |
+| [ADR-0003](0003-device-and-transformation-layer-boundaries.md) | Device And Transformation Layer Boundaries | Accepted |
+| [ADR-0004](0004-fsm-isolation-and-execution-boundaries.md) | FSM, Workflow, Runtime, And Messaging Boundary | Accepted |
+| [ADR-0005](0005-messaging-abstraction-and-routing-boundary.md) | Messaging Abstraction And Routing Boundary | Accepted |
+| [ADR-0006](0006-reliability-and-recovery.md) | Reliability And Recovery | Accepted |
 
 ## Naming Convention
 
